@@ -1,0 +1,45 @@
+name: Auto Bump Version
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+  workflow_dispatch:
+
+jobs:
+  bump-version:
+    name: Bump version and create changelog with commitizen
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Commitizen
+        run: pip install commitizen
+
+      - name: Configure Git User
+        run: |
+          git config user.name "Raven"
+          git config user.email "raven[bot]@users.noreply.github.com"
+
+      - name: Bump version
+        id: cz_bump
+        run: |
+          # Perform the bump on main
+          if cz bump --yes; then
+            echo "bumped=true" >> $GITHUB_OUTPUT
+            git push origin main --tags
+          else
+            echo "bumped=false" >> $GITHUB_OUTPUT
+          fi
