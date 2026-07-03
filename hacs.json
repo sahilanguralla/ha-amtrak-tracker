@@ -1,6 +1,10 @@
 {
   "name": "Amtrak Tracker",
-  "render_readme": true,
+  "domains": [
+    "amtrak_tracker"
+  ],
+  "hacs": "1.34.0",
+  "homeassistant": "2024.1.0",
   "country": "US",
-  "homeassistant": "2024.1.0"
+  "render_readme": true
 }

@@ -2,6 +2,7 @@
   "domain": "amtrak_tracker",
   "name": "Amtrak Tracker",
   "codeowners": ["@sahilanguralla"],
+  "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/sahilanguralla/ha-amtrak-tracker",
   "issue_tracker": "https://github.com/sahilanguralla/ha-amtrak-tracker/issues",
