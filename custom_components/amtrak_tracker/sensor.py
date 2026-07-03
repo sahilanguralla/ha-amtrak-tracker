@@ -5,7 +5,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -105,7 +105,6 @@ class AmtrakTrainSensor(CoordinatorEntity[AmtrakDataUpdateCoordinator], SensorEn
         if sensor_type == "departure":
             self._attr_name = f"{ordinal} Upcoming Train"
             self._attr_unique_id = f"{DOMAIN}_{self._origin.lower()}_{self._destination.lower()}_{entry.entry_id}_{ordinal.lower()}_upcoming_train"
-            self._attr_device_class = SensorDeviceClass.TIMESTAMP
         else:
             self._attr_name = f"{ordinal} Train Current Schedule"
             self._attr_unique_id = f"{DOMAIN}_{self._origin.lower()}_{self._destination.lower()}_{entry.entry_id}_{ordinal.lower()}_train_current_schedule"
@@ -238,7 +237,8 @@ class AmtrakTrainSensor(CoordinatorEntity[AmtrakDataUpdateCoordinator], SensorEn
         if train_info:
             if self._sensor_type == "departure":
                 try:
-                    self._state = datetime.fromisoformat(train_info["estimated_departure"])
+                    dt = datetime.fromisoformat(train_info["estimated_departure"])
+                    self._state = dt.strftime("%I:%M %p").lstrip('0')
                 except (ValueError, TypeError):
                     self._state = None
             else:

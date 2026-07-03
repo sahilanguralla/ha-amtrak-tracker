@@ -51,7 +51,7 @@ A Home Assistant custom integration that tracks Amtrak trains between an origin 
 Each configured tracker creates a sensor entity (e.g. `sensor.nyp_to_phl_tracker`).
 
 ### State
-The main state of the sensor is the **estimated departure timestamp** of the next upcoming train in the configured window (conforms to `SensorDeviceClass.TIMESTAMP` which displays as relative or formatted time in the UI). If no trains match or all matching trains have already departed, the state will show as `Unknown` / `None`.
+The main state of the departure sensor is the **estimated departure time** of the next upcoming train in the configured window (formatted as a local 12-hour time string, e.g. `4:32 PM`). If no trains match or all matching trains have already departed, the state will show as `Unknown` / `None`.
 
 ### Attributes
 The sensor exposes the following attributes for the next upcoming train:

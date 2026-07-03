@@ -124,7 +124,7 @@ def test_sensor_tracking():
     # 3rd upcoming train (idx 2) should be None.
     
     # 1st Train Departure
-    assert sensors[0][0].native_value == datetime.fromisoformat("2026-07-03T09:05:00-04:00")
+    assert sensors[0][0].native_value == "9:05 AM"
     assert sensors[0][0].extra_state_attributes["train_number"] == "101"
     assert sensors[0][0].extra_state_attributes["matched_trains_count"] == 2
     assert sensors[0][0].extra_state_attributes["upcoming_trains_count"] == 2
@@ -134,7 +134,7 @@ def test_sensor_tracking():
     assert sensors[0][1].extra_state_attributes["train_number"] == "101"
     
     # 2nd Train Departure
-    assert sensors[1][0].native_value == datetime.fromisoformat("2026-07-03T12:00:00-04:00")
+    assert sensors[1][0].native_value == "12:00 PM"
     assert sensors[1][0].extra_state_attributes["train_number"] == "103"
     assert sensors[1][0].extra_state_attributes["matched_trains_count"] == 2
     assert sensors[1][0].extra_state_attributes["upcoming_trains_count"] == 2
@@ -159,7 +159,7 @@ def test_sensor_tracking():
 
     # Now, Train 101 is no longer upcoming. Train 103 becomes the 1st upcoming train.
     # 1st Train Departure should switch to Train 103.
-    assert sensors[0][0].native_value == datetime.fromisoformat("2026-07-03T12:00:00-04:00")
+    assert sensors[0][0].native_value == "12:00 PM"
     assert sensors[0][0].extra_state_attributes["train_number"] == "103"
     assert sensors[0][0].extra_state_attributes["matched_trains_count"] == 2
     assert sensors[0][0].extra_state_attributes["upcoming_trains_count"] == 1
