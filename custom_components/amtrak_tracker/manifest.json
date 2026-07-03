@@ -5,8 +5,8 @@
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/sahilanguralla/ha-amtrak-tracker",
+  "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/sahilanguralla/ha-amtrak-tracker/issues",
   "requirements": [],
-  "version": "1.0.0",
-  "iot_class": "cloud_polling"
+  "version": "1.0.0"
 }
