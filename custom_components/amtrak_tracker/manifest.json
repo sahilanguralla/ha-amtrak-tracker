@@ -1,0 +1,11 @@
+{
+  "domain": "amtrak_tracker",
+  "name": "Amtrak Tracker",
+  "codeowners": ["@sahilanguralla"],
+  "dependencies": [],
+  "documentation": "https://github.com/sahilanguralla/ha-amtrak-tracker",
+  "issue_tracker": "https://github.com/sahilanguralla/ha-amtrak-tracker/issues",
+  "requirements": [],
+  "version": "1.0.0",
+  "iot_class": "cloud_polling"
+}

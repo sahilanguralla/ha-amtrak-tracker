@@ -1,0 +1,26 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Amtrak Train Tracker",
+        "description": "Set up a tracker for Amtrak trains between an origin and destination station for specific days and a scheduled departure time window.",
+        "data": {
+          "origin": "Origin Station Code (e.g., NYP)",
+          "destination": "Destination Station Code (e.g., PHL)",
+          "days": "Days of the week to track",
+          "start_time": "Start of departure time window (HH:MM)",
+          "end_time": "End of departure time window (HH:MM)"
+        }
+      }
+    },
+    "error": {
+      "invalid_origin": "Invalid origin station code. Please use a valid 3-letter Amtrak code.",
+      "invalid_destination": "Invalid destination station code. Please use a valid 3-letter Amtrak code.",
+      "same_stations": "Origin and destination stations cannot be the same.",
+      "invalid_time_format": "Time format must be HH:MM (e.g., 08:00 or 15:30).",
+      "invalid_time_range": "End time must be after start time.",
+      "cannot_connect": "Failed to connect to Amtraker API. Please verify internet connection.",
+      "unknown": "Unexpected error occurred."
+    }
+  }
+}
