@@ -24,4 +24,4 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          pytest --cov=custom_components.amtrak_tracker --cov-report=term-missing --cov-fail-under=45 tests/
+          pytest --cov=custom_components.amtrak_tracker --cov-report=term-missing --cov-fail-under=85 tests/

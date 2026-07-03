@@ -1,196 +1,284 @@
-import sys
+"""Test sensor platform and tracking logic of Amtrak Tracker."""
+
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch, MagicMock
+import pytest
 
-# Mock homeassistant modules and other external libraries before importing sensor
-class MockSensorEntity:
-    pass
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-class MockCoordinatorEntity:
-    def __init__(self, coordinator):
-        self.coordinator = coordinator
+from custom_components.amtrak_tracker.const import DOMAIN, STATIONS_URL, TRAINS_URL
+from custom_components.amtrak_tracker.sensor import calculate_delay_minutes, AmtrakTrainSensor
 
-    def __class_getitem__(cls, item):
-        return cls
+MOCK_STATIONS = {
+    "NYP": {"name": "New York Penn Station"},
+    "PHL": {"name": "Philadelphia 30th Street"},
+}
 
-sys.modules["aiohttp"] = MagicMock()
-sys.modules["homeassistant"] = MagicMock()
-sys.modules["homeassistant.const"] = MagicMock()
-sys.modules["homeassistant.components"] = MagicMock()
-sys.modules["homeassistant.components.sensor"] = MagicMock()
-sys.modules["homeassistant.components.sensor"].SensorEntity = MockSensorEntity
-sys.modules["homeassistant.components.sensor"].SensorDeviceClass = MagicMock()
-sys.modules["homeassistant.config_entries"] = MagicMock()
-sys.modules["homeassistant.core"] = MagicMock()
-sys.modules["homeassistant.helpers"] = MagicMock()
-sys.modules["homeassistant.helpers.entity_platform"] = MagicMock()
-sys.modules["homeassistant.helpers.update_coordinator"] = MagicMock()
-sys.modules["homeassistant.helpers.update_coordinator"].CoordinatorEntity = MockCoordinatorEntity
-sys.modules["homeassistant.helpers.aiohttp_client"] = MagicMock()
+MOCK_TRAINS = {
+    "101": [
+        {
+            "trainNum": "101",
+            "routeName": "Keystone",
+            "trainID": "101-1",
+            "trainState": "Active",
+            "lat": 40.0,
+            "lon": -74.0,
+            "velocity": 80.0,
+            "stations": [
+                {
+                    "code": "NYP",
+                    "schDep": "2026-07-03T09:00:00-04:00",
+                    "dep": "2026-07-03T09:05:00-04:00",
+                    "status": "Enroute",
+                },
+                {
+                    "code": "PHL",
+                    "schArr": "2026-07-03T10:30:00-04:00",
+                    "arr": "2026-07-03T10:35:00-04:00",
+                    "status": "Enroute",
+                }
+            ]
+        }
+    ],
+    "103": [
+        {
+            "trainNum": "103",
+            "routeName": "Keystone",
+            "trainID": "103-1",
+            "trainState": "Active",
+            "lat": 40.1,
+            "lon": -74.1,
+            "velocity": 85.0,
+            "stations": [
+                {
+                    "code": "NYP",
+                    "schDep": "2026-07-03T12:00:00-04:00",
+                    "dep": "2026-07-03T12:00:00-04:00",
+                    "status": "Enroute",
+                },
+                {
+                    "code": "PHL",
+                    "schArr": "2026-07-03T13:30:00-04:00",
+                    "arr": "2026-07-03T13:30:00-04:00",
+                    "status": "Enroute",
+                }
+            ]
+        }
+    ]
+}
 
-# Now import sensor after mocking
-from custom_components.amtrak_tracker.sensor import AmtrakTrainSensor, calculate_delay_minutes
 
-def test_delay_calculation():
-    # Test calculate_delay_minutes
+def test_delay_calculation() -> None:
+    """Test the calculate_delay_minutes helper."""
     assert calculate_delay_minutes("2026-07-03T10:00:00-04:00", "2026-07-03T10:15:00-04:00") == 15
     assert calculate_delay_minutes("2026-07-03T10:00:00-04:00", "2026-07-03T09:45:00-04:00") == -15
     assert calculate_delay_minutes(None, "2026-07-03T10:15:00-04:00") is None
+    assert calculate_delay_minutes("2026-07-03T10:00:00-04:00", None) is None
+    
+    # Test invalid time format exception handling
+    assert calculate_delay_minutes("invalid-time", "2026-07-03T10:15:00-04:00") is None
 
-def test_sensor_tracking():
-    # Setup mock config entry and coordinator
-    mock_entry = MagicMock()
-    mock_entry.data = {
-        "origin": "NYP",
-        "destination": "PHL",
-        "days": ["monday", "friday"],
-        "start_time": "08:00",
-        "end_time": "17:00",
-    }
-    mock_entry.entry_id = "test_entry_id"
 
-    mock_coordinator = MagicMock()
-    # Mock API data with two trains:
-    # Train 1: Scheduled Friday 09:00 (within duration)
-    # Train 2: Scheduled Friday 12:00 (within duration)
-    mock_coordinator.data = {
+async def test_sensors_setup_and_update(hass: HomeAssistant, aioclient_mock) -> None:
+    """Test full setup of the sensor platform and state updates."""
+    # Mock API responses
+    aioclient_mock.get(STATIONS_URL, json=MOCK_STATIONS)
+    aioclient_mock.get(TRAINS_URL, json=MOCK_TRAINS)
+
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="NYP to PHL Tracker",
+        data={
+            "origin": "NYP",
+            "destination": "PHL",
+            "days": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
+            "start_time": "08:00",
+            "end_time": "17:00",
+        },
+    )
+    config_entry.add_to_hass(hass)
+
+    # Set up the integration entry
+    assert await hass.config_entries.async_setup(config_entry.entry_id) is True
+    await hass.async_block_till_done()
+
+    # Check that 6 sensors are created in the entity registry
+    ent_reg = er.async_get(hass)
+    
+    # We expect 3 departure sensors and 3 schedule sensors
+    expected_entities = [
+        "sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1st_upcoming_train",
+        "sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1st_train_current_schedule",
+        "sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_2nd_upcoming_train",
+        "sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_2nd_train_current_schedule",
+        "sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_3rd_upcoming_train",
+        "sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_3rd_train_current_schedule",
+    ]
+    for entity_id in expected_entities:
+        assert ent_reg.async_get(entity_id) is not None
+
+    # Check 1st upcoming train state (Train 101 departure NYP is 09:05 AM)
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1st_upcoming_train")
+    assert state is not None
+    assert state.state == "9:05 AM"
+    assert state.attributes["train_number"] == "101"
+    assert state.attributes["upcoming_trains_count"] == 2
+
+    # Check 1st schedule delay state (5 mins delay)
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1st_train_current_schedule")
+    assert state is not None
+    assert state.state == "5"
+
+    # Check 2nd upcoming train state (Train 103 departure NYP is 12:00 PM)
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_2nd_upcoming_train")
+    assert state is not None
+    assert state.state == "12:00 PM"
+
+    # Check 3rd upcoming train (should be None/unknown since only 2 trains match)
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_3rd_upcoming_train")
+    assert state is not None
+    assert state.state == "unknown"  # Home Assistant represents None native value as "unknown" state
+
+    # Trigger a coordinator update to simulate Train 101 departing NYP (origin)
+    updated_trains = dict(MOCK_TRAINS)
+    updated_trains["101"][0]["stations"][0]["status"] = "Departed"
+
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(STATIONS_URL, json=MOCK_STATIONS)
+    aioclient_mock.get(TRAINS_URL, json=updated_trains)
+
+    # Force coordinator data refresh
+    coordinator = hass.data[DOMAIN]["coordinator"]
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    # Now Train 103 should be the 1st upcoming train
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1st_upcoming_train")
+    assert state is not None
+    assert state.state == "12:00 PM"
+    assert state.attributes["train_number"] == "103"
+
+    # And the 2nd upcoming train should be unknown/None
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_2nd_upcoming_train")
+    assert state is not None
+    assert state.state == "unknown"
+
+
+async def test_sensor_edge_cases(hass: HomeAssistant, aioclient_mock) -> None:
+    """Test various edge cases and error handling paths in AmtrakTrainSensor."""
+    # API data with various weird states/formats
+    weird_trains = {
         "101": [
+            # Train with missing stations key
             {
                 "trainNum": "101",
                 "routeName": "Keystone",
                 "trainID": "101-1",
-                "trainState": "Active",
-                "lat": 40.0,
-                "lon": -74.0,
-                "velocity": 80.0,
+            },
+            # Train with empty scheduled departure
+            {
+                "trainNum": "102",
                 "stations": [
-                    {
-                        "code": "NYP",
-                        "schDep": "2026-07-03T09:00:00-04:00",
-                        "dep": "2026-07-03T09:05:00-04:00",
-                        "status": "Enroute",
-                    },
-                    {
-                        "code": "PHL",
-                        "schArr": "2026-07-03T10:30:00-04:00",
-                        "arr": "2026-07-03T10:35:00-04:00",
-                        "status": "Enroute",
-                    }
+                    {"code": "NYP", "schDep": None, "status": "Enroute"},
+                    {"code": "PHL", "schArr": "2026-07-03T10:30:00-04:00", "status": "Enroute"},
                 ]
-            }
-        ],
-        "103": [
+            },
+            # Train with invalid scheduled departure format
             {
                 "trainNum": "103",
-                "routeName": "Keystone",
-                "trainID": "103-1",
-                "trainState": "Active",
-                "lat": 40.1,
-                "lon": -74.1,
-                "velocity": 85.0,
                 "stations": [
-                    {
-                        "code": "NYP",
-                        "schDep": "2026-07-03T12:00:00-04:00",
-                        "dep": "2026-07-03T12:00:00-04:00",
-                        "status": "Enroute",
-                    },
-                    {
-                        "code": "PHL",
-                        "schArr": "2026-07-03T13:30:00-04:00",
-                        "arr": "2026-07-03T13:30:00-04:00",
-                        "status": "Enroute",
-                    }
+                    {"code": "NYP", "schDep": "invalid-date", "status": "Enroute"},
+                    {"code": "PHL", "schArr": "2026-07-03T10:30:00-04:00", "status": "Enroute"},
                 ]
-            }
-        ]
+            },
+            # Train scheduled on a day not in config
+            {
+                "trainNum": "104",
+                "stations": [
+                    {"code": "NYP", "schDep": "2026-07-04T09:00:00-04:00", "status": "Enroute"}, # Saturday (not config)
+                    {"code": "PHL", "schArr": "2026-07-04T10:30:00-04:00", "status": "Enroute"},
+                ]
+            },
+            # Train outside time range
+            {
+                "trainNum": "105",
+                "stations": [
+                    {"code": "NYP", "schDep": "2026-07-03T20:00:00-04:00", "status": "Enroute"}, # 8:00 PM (out of range)
+                    {"code": "PHL", "schArr": "2026-07-03T21:30:00-04:00", "status": "Enroute"},
+                ]
+            },
+        ],
+        "invalid_format": "not_a_list",  # Trigger line 145-146 (non-list train_list check)
     }
 
-    stations_cache = {
-        "NYP": {"name": "New York Penn Station"},
-        "PHL": {"name": "Philadelphia 30th Street"}
-    }
+    aioclient_mock.get(STATIONS_URL, json=MOCK_STATIONS)
+    aioclient_mock.get(TRAINS_URL, json=weird_trains)
 
-    # Initialize sensors (3 upcoming departure, 3 schedule)
-    sensors = []
-    for i in range(3):
-        dep_sensor = AmtrakTrainSensor(mock_coordinator, mock_entry, stations_cache, i, "departure")
-        sch_sensor = AmtrakTrainSensor(mock_coordinator, mock_entry, stations_cache, i, "schedule")
-        sensors.append((dep_sensor, sch_sensor))
-    
-    # 1. Initially, both trains are upcoming (Enroute at origin).
-    # 1st upcoming train (idx 0) should be Train 101.
-    # 2nd upcoming train (idx 1) should be Train 103.
-    # 3rd upcoming train (idx 2) should be None.
-    
-    # 1st Train Departure
-    assert sensors[0][0].native_value == "9:05 AM"
-    assert sensors[0][0].extra_state_attributes["train_number"] == "101"
-    assert sensors[0][0].extra_state_attributes["matched_trains_count"] == 2
-    assert sensors[0][0].extra_state_attributes["upcoming_trains_count"] == 2
-    
-    # 1st Train Schedule
-    assert sensors[0][1].native_value == 5
-    assert sensors[0][1].extra_state_attributes["train_number"] == "101"
-    
-    # 2nd Train Departure
-    assert sensors[1][0].native_value == "12:00 PM"
-    assert sensors[1][0].extra_state_attributes["train_number"] == "103"
-    assert sensors[1][0].extra_state_attributes["matched_trains_count"] == 2
-    assert sensors[1][0].extra_state_attributes["upcoming_trains_count"] == 2
-    
-    # 2nd Train Schedule
-    assert sensors[1][1].native_value == 0
-    assert sensors[1][1].extra_state_attributes["train_number"] == "103"
-    
-    # 3rd Train Departure & Schedule (should be None)
-    assert sensors[2][0].native_value is None
-    assert sensors[2][0].extra_state_attributes["train_number"] is None
-    assert sensors[2][1].native_value is None
-    assert sensors[2][1].extra_state_attributes["train_number"] is None
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "origin": "NYP",
+            "destination": "PHL",
+            "days": ["friday"], # Friday only
+            "start_time": "08:00",
+            "end_time": "17:00",
+        },
+    )
+    config_entry.add_to_hass(hass)
 
-    # 2. Now let's simulate Train 101 departing NYP (origin), but still en route to PHL (destination).
-    mock_coordinator.data["101"][0]["stations"][0]["status"] = "Departed"
+    assert await hass.config_entries.async_setup(config_entry.entry_id) is True
+    await hass.async_block_till_done()
+
+    # None of the weird trains should match and become upcoming
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1st_upcoming_train")
+    assert state is not None
+    assert state.state == "unknown"
+
+
+async def test_sensor_config_time_parse_error(hass: HomeAssistant) -> None:
+    """Test behavior when the config entry contains an invalid start/end time."""
+    # Handled by mock setup bypassing normal config validations
+    coordinator = MagicMock()
+    coordinator.data = {}
     
-    # Update internal state for all sensors
-    for dep_sensor, sch_sensor in sensors:
-        dep_sensor._update_internal_state()
-        sch_sensor._update_internal_state()
-
-    # Now, Train 101 is no longer upcoming. Train 103 becomes the 1st upcoming train.
-    # 1st Train Departure should switch to Train 103.
-    assert sensors[0][0].native_value == "12:00 PM"
-    assert sensors[0][0].extra_state_attributes["train_number"] == "103"
-    assert sensors[0][0].extra_state_attributes["matched_trains_count"] == 2
-    assert sensors[0][0].extra_state_attributes["upcoming_trains_count"] == 1
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "origin": "NYP",
+            "destination": "PHL",
+            "days": ["friday"],
+            "start_time": "invalid",
+            "end_time": "17:00",
+        },
+    )
     
-    # 1st Train Schedule should switch to Train 103 (0 min delay)
-    assert sensors[0][1].native_value == 0
-    assert sensors[0][1].extra_state_attributes["train_number"] == "103"
+    sensor = AmtrakTrainSensor(coordinator, config_entry, {}, 0, "departure")
+    # Calling update internal state should log an error and return without raising exception
+    with patch("custom_components.amtrak_tracker.sensor._LOGGER.error") as mock_log:
+        sensor._update_internal_state()
+        assert mock_log.called
+
+
+async def test_device_info_property(hass: HomeAssistant) -> None:
+    """Test device_info returns correct metadata."""
+    coordinator = MagicMock()
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        entry_id="unique_entry_id",
+        data={
+            "origin": "NYP",
+            "destination": "PHL",
+            "days": ["friday"],
+            "start_time": "08:00",
+            "end_time": "17:00",
+        },
+    )
+    stations_cache = {"NYP": {"name": "New York"}, "PHL": {"name": "Philadelphia"}}
     
-    # 2nd Train Departure & Schedule should now be None
-    assert sensors[1][0].native_value is None
-    assert sensors[1][0].extra_state_attributes["train_number"] is None
-    assert sensors[1][1].native_value is None
-    assert sensors[1][1].extra_state_attributes["train_number"] is None
-
-    # 3. Now let's simulate Train 103 also departing NYP.
-    mock_coordinator.data["103"][0]["stations"][0]["status"] = "Departed"
+    sensor = AmtrakTrainSensor(coordinator, config_entry, stations_cache, 0, "departure")
+    device_info = sensor.device_info
     
-    for dep_sensor, sch_sensor in sensors:
-        dep_sensor._update_internal_state()
-        sch_sensor._update_internal_state()
-
-    # Both trains have departed origin. No upcoming trains remain.
-    # All sensors should be None.
-    for dep_sensor, sch_sensor in sensors:
-        assert dep_sensor.native_value is None
-        assert dep_sensor.extra_state_attributes["train_number"] is None
-        assert sch_sensor.native_value is None
-        assert sch_sensor.extra_state_attributes["train_number"] is None
-
-    print("All tracking logic tests passed successfully!")
-
-if __name__ == "__main__":
-    test_delay_calculation()
-    test_sensor_tracking()
+    assert device_info["name"] == "New York to Philadelphia Amtrak Tracker"
+    assert device_info["manufacturer"] == "Amtrak"
