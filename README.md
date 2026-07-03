@@ -78,6 +78,7 @@ The sensor exposes the following attributes for the next upcoming train:
 | `matched_trains_count` | Total matching runs scheduled for the configured day. |
 | `upcoming_trains_count` | Count of matching runs that have not yet departed. |
 | `matched_trains` | A list of all matching trains for the day (both departed and upcoming) for template iteration. |
+| `upcoming_trains` | A list of all upcoming trains for the duration that have not yet departed. |
 
 ---
 

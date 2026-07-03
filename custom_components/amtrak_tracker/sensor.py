@@ -200,34 +200,40 @@ class AmtrakTrackerSensor(CoordinatorEntity[AmtrakDataUpdateCoordinator], Sensor
             "matched_trains_count": len(matched_trains),
             "upcoming_trains_count": len(upcoming_trains),
             "matched_trains": matched_trains,
+            "upcoming_trains": upcoming_trains,
         }
 
-        # If there's an upcoming train, set state and train-specific attributes
-        if upcoming_trains:
-            next_train = upcoming_trains[0]
-            
+        # Find the first train that hasn't finished its run to actively track
+        active_train = None
+        for train in matched_trains:
+            if train["arrival_status"] != "Departed" and train["train_state"] != "Completed":
+                active_train = train
+                break
+
+        # If there's an active train, set state and train-specific attributes
+        if active_train:
             # The state of a TIMESTAMP sensor must be a datetime object
             try:
-                self._state = datetime.fromisoformat(next_train["estimated_departure"])
+                self._state = datetime.fromisoformat(active_train["estimated_departure"])
             except ValueError:
                 self._state = None
                 
             attrs.update({
-                "train_number": next_train["train_number"],
-                "route_name": next_train["route_name"],
-                "train_id": next_train["train_id"],
-                "train_state": next_train["train_state"],
-                "scheduled_departure": next_train["scheduled_departure"],
-                "estimated_departure": next_train["estimated_departure"],
-                "departure_status": next_train["departure_status"],
-                "scheduled_arrival": next_train["scheduled_arrival"],
-                "estimated_arrival": next_train["estimated_arrival"],
-                "arrival_status": next_train["arrival_status"],
-                "delay_departure_minutes": next_train["delay_departure_minutes"],
-                "delay_arrival_minutes": next_train["delay_arrival_minutes"],
-                "train_latitude": next_train["latitude"],
-                "train_longitude": next_train["longitude"],
-                "train_speed_mph": next_train["speed_mph"],
+                "train_number": active_train["train_number"],
+                "route_name": active_train["route_name"],
+                "train_id": active_train["train_id"],
+                "train_state": active_train["train_state"],
+                "scheduled_departure": active_train["scheduled_departure"],
+                "estimated_departure": active_train["estimated_departure"],
+                "departure_status": active_train["departure_status"],
+                "scheduled_arrival": active_train["scheduled_arrival"],
+                "estimated_arrival": active_train["estimated_arrival"],
+                "arrival_status": active_train["arrival_status"],
+                "delay_departure_minutes": active_train["delay_departure_minutes"],
+                "delay_arrival_minutes": active_train["delay_arrival_minutes"],
+                "train_latitude": active_train["latitude"],
+                "train_longitude": active_train["longitude"],
+                "train_speed_mph": active_train["speed_mph"],
             })
         else:
             self._state = None
