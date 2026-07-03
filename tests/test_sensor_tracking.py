@@ -29,7 +29,7 @@ sys.modules["homeassistant.helpers.update_coordinator"].CoordinatorEntity = Mock
 sys.modules["homeassistant.helpers.aiohttp_client"] = MagicMock()
 
 # Now import sensor after mocking
-from custom_components.amtrak_tracker.sensor import AmtrakTrackerSensor, calculate_delay_minutes
+from custom_components.amtrak_tracker.sensor import AmtrakTrainSensor, calculate_delay_minutes
 
 def test_delay_calculation():
     # Test calculate_delay_minutes
@@ -111,55 +111,83 @@ def test_sensor_tracking():
         "PHL": {"name": "Philadelphia 30th Street"}
     }
 
-    # Initialize sensor
-    sensor = AmtrakTrackerSensor(mock_coordinator, mock_entry, stations_cache)
+    # Initialize sensors (3 upcoming departure, 3 schedule)
+    sensors = []
+    for i in range(3):
+        dep_sensor = AmtrakTrainSensor(mock_coordinator, mock_entry, stations_cache, i, "departure")
+        sch_sensor = AmtrakTrainSensor(mock_coordinator, mock_entry, stations_cache, i, "schedule")
+        sensors.append((dep_sensor, sch_sensor))
     
     # 1. Initially, both trains are upcoming (Enroute at origin).
-    # Active train should be Train 101.
-    assert sensor.native_value == datetime.fromisoformat("2026-07-03T09:05:00-04:00")
-    assert sensor.extra_state_attributes["train_number"] == "101"
-    assert sensor.extra_state_attributes["matched_trains_count"] == 2
-    assert sensor.extra_state_attributes["upcoming_trains_count"] == 2
-    assert len(sensor.extra_state_attributes["upcoming_trains"]) == 2
-    assert sensor.extra_state_attributes["upcoming_trains"][0]["train_number"] == "101"
-    assert sensor.extra_state_attributes["upcoming_trains"][1]["train_number"] == "103"
+    # 1st upcoming train (idx 0) should be Train 101.
+    # 2nd upcoming train (idx 1) should be Train 103.
+    # 3rd upcoming train (idx 2) should be None.
+    
+    # 1st Train Departure
+    assert sensors[0][0].native_value == datetime.fromisoformat("2026-07-03T09:05:00-04:00")
+    assert sensors[0][0].extra_state_attributes["train_number"] == "101"
+    assert sensors[0][0].extra_state_attributes["matched_trains_count"] == 2
+    assert sensors[0][0].extra_state_attributes["upcoming_trains_count"] == 2
+    
+    # 1st Train Schedule
+    assert sensors[0][1].native_value == 5
+    assert sensors[0][1].extra_state_attributes["train_number"] == "101"
+    
+    # 2nd Train Departure
+    assert sensors[1][0].native_value == datetime.fromisoformat("2026-07-03T12:00:00-04:00")
+    assert sensors[1][0].extra_state_attributes["train_number"] == "103"
+    assert sensors[1][0].extra_state_attributes["matched_trains_count"] == 2
+    assert sensors[1][0].extra_state_attributes["upcoming_trains_count"] == 2
+    
+    # 2nd Train Schedule
+    assert sensors[1][1].native_value == 0
+    assert sensors[1][1].extra_state_attributes["train_number"] == "103"
+    
+    # 3rd Train Departure & Schedule (should be None)
+    assert sensors[2][0].native_value is None
+    assert sensors[2][0].extra_state_attributes["train_number"] is None
+    assert sensors[2][1].native_value is None
+    assert sensors[2][1].extra_state_attributes["train_number"] is None
 
     # 2. Now let's simulate Train 101 departing NYP (origin), but still en route to PHL (destination).
     mock_coordinator.data["101"][0]["stations"][0]["status"] = "Departed"
-    sensor._update_internal_state()
+    
+    # Update internal state for all sensors
+    for dep_sensor, sch_sensor in sensors:
+        dep_sensor._update_internal_state()
+        sch_sensor._update_internal_state()
 
-    # Active train should STILL be Train 101 (actively tracking it).
-    # But upcoming_trains should now only show Train 103 (since Train 101 has departed origin).
-    assert sensor.native_value == datetime.fromisoformat("2026-07-03T09:05:00-04:00")
-    assert sensor.extra_state_attributes["train_number"] == "101"
-    assert sensor.extra_state_attributes["matched_trains_count"] == 2
-    assert sensor.extra_state_attributes["upcoming_trains_count"] == 1
-    assert len(sensor.extra_state_attributes["upcoming_trains"]) == 1
-    assert sensor.extra_state_attributes["upcoming_trains"][0]["train_number"] == "103"
+    # Now, Train 101 is no longer upcoming. Train 103 becomes the 1st upcoming train.
+    # 1st Train Departure should switch to Train 103.
+    assert sensors[0][0].native_value == datetime.fromisoformat("2026-07-03T12:00:00-04:00")
+    assert sensors[0][0].extra_state_attributes["train_number"] == "103"
+    assert sensors[0][0].extra_state_attributes["matched_trains_count"] == 2
+    assert sensors[0][0].extra_state_attributes["upcoming_trains_count"] == 1
+    
+    # 1st Train Schedule should switch to Train 103 (0 min delay)
+    assert sensors[0][1].native_value == 0
+    assert sensors[0][1].extra_state_attributes["train_number"] == "103"
+    
+    # 2nd Train Departure & Schedule should now be None
+    assert sensors[1][0].native_value is None
+    assert sensors[1][0].extra_state_attributes["train_number"] is None
+    assert sensors[1][1].native_value is None
+    assert sensors[1][1].extra_state_attributes["train_number"] is None
 
-    # 3. Now let's simulate Train 101 arriving/departing PHL (destination).
-    mock_coordinator.data["101"][0]["stations"][1]["status"] = "Departed"
-    sensor._update_internal_state()
-
-    # Active train should now switch to Train 103!
-    assert sensor.native_value == datetime.fromisoformat("2026-07-03T12:00:00-04:00")
-    assert sensor.extra_state_attributes["train_number"] == "103"
-    assert sensor.extra_state_attributes["matched_trains_count"] == 2
-    assert sensor.extra_state_attributes["upcoming_trains_count"] == 1
-    assert len(sensor.extra_state_attributes["upcoming_trains"]) == 1
-    assert sensor.extra_state_attributes["upcoming_trains"][0]["train_number"] == "103"
-
-    # 4. Now let's simulate Train 103 also completing (departing destination).
+    # 3. Now let's simulate Train 103 also departing NYP.
     mock_coordinator.data["103"][0]["stations"][0]["status"] = "Departed"
-    mock_coordinator.data["103"][0]["stations"][1]["status"] = "Departed"
-    sensor._update_internal_state()
+    
+    for dep_sensor, sch_sensor in sensors:
+        dep_sensor._update_internal_state()
+        sch_sensor._update_internal_state()
 
-    # Active train should be None since all trains have finished.
-    assert sensor.native_value is None
-    assert sensor.extra_state_attributes["train_number"] is None
-    assert sensor.extra_state_attributes["matched_trains_count"] == 2
-    assert sensor.extra_state_attributes["upcoming_trains_count"] == 0
-    assert len(sensor.extra_state_attributes["upcoming_trains"]) == 0
+    # Both trains have departed origin. No upcoming trains remain.
+    # All sensors should be None.
+    for dep_sensor, sch_sensor in sensors:
+        assert dep_sensor.native_value is None
+        assert dep_sensor.extra_state_attributes["train_number"] is None
+        assert sch_sensor.native_value is None
+        assert sch_sensor.extra_state_attributes["train_number"] is None
 
     print("All tracking logic tests passed successfully!")
 

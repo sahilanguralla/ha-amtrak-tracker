@@ -43,25 +43,37 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the Amtrak Tracker sensor from config entry."""
+    """Set up the Amtrak Tracker sensors from config entry."""
     coordinator: AmtrakDataUpdateCoordinator = hass.data[DOMAIN]["coordinator"]
     stations_cache = hass.data[DOMAIN].get("stations", {})
 
-    async_add_entities(
-        [
-            AmtrakTrackerSensor(
+    sensors = []
+    for index in range(3):
+        sensors.append(
+            AmtrakTrainSensor(
                 coordinator=coordinator,
                 entry=entry,
                 stations_cache=stations_cache,
+                index=index,
+                sensor_type="departure",
             )
-        ]
-    )
+        )
+        sensors.append(
+            AmtrakTrainSensor(
+                coordinator=coordinator,
+                entry=entry,
+                stations_cache=stations_cache,
+                index=index,
+                sensor_type="schedule",
+            )
+        )
+
+    async_add_entities(sensors)
 
 
-class AmtrakTrackerSensor(CoordinatorEntity[AmtrakDataUpdateCoordinator], SensorEntity):
-    """Representation of an Amtrak Tracker sensor."""
+class AmtrakTrainSensor(CoordinatorEntity[AmtrakDataUpdateCoordinator], SensorEntity):
+    """Representation of an Amtrak Train sensor."""
 
-    _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_has_entity_name = True
 
     def __init__(
@@ -69,12 +81,16 @@ class AmtrakTrackerSensor(CoordinatorEntity[AmtrakDataUpdateCoordinator], Sensor
         coordinator: AmtrakDataUpdateCoordinator,
         entry: ConfigEntry,
         stations_cache: dict[str, Any],
+        index: int,
+        sensor_type: str,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._entry = entry
         self._stations_cache = stations_cache
-        
+        self._index = index
+        self._sensor_type = sensor_type
+
         self._origin = entry.data[CONF_ORIGIN]
         self._destination = entry.data[CONF_DESTINATION]
         self._days = entry.data[CONF_DAYS]
@@ -82,21 +98,38 @@ class AmtrakTrackerSensor(CoordinatorEntity[AmtrakDataUpdateCoordinator], Sensor
         self._end_time = entry.data[CONF_END_TIME]
 
         # Use station names from cache if available, otherwise default to code
-        origin_name = stations_cache.get(self._origin, {}).get("name", self._origin)
-        dest_name = stations_cache.get(self._destination, {}).get("name", self._destination)
+        self._origin_name = stations_cache.get(self._origin, {}).get("name", self._origin)
+        self._dest_name = stations_cache.get(self._destination, {}).get("name", self._destination)
 
-        self._attr_name = f"{origin_name} to {dest_name} Tracker"
-        self._attr_unique_id = f"{DOMAIN}_{self._origin.lower()}_{self._destination.lower()}_{entry.entry_id}"
-        
-        self._state: datetime | None = None
+        ordinal = {0: "1st", 1: "2nd", 2: "3rd"}[index]
+        if sensor_type == "departure":
+            self._attr_name = f"{ordinal} Upcoming Train"
+            self._attr_unique_id = f"{DOMAIN}_{self._origin.lower()}_{self._destination.lower()}_{entry.entry_id}_{ordinal.lower()}_upcoming_train"
+            self._attr_device_class = SensorDeviceClass.TIMESTAMP
+        else:
+            self._attr_name = f"{ordinal} Train Current Schedule"
+            self._attr_unique_id = f"{DOMAIN}_{self._origin.lower()}_{self._destination.lower()}_{entry.entry_id}_{ordinal.lower()}_train_current_schedule"
+            self._attr_native_unit_of_measurement = "min"
+
+        self._state: Any = None
         self._attributes: dict[str, Any] = {}
 
         self._update_internal_state()
 
+    @property
+    def device_info(self) -> dict[str, Any]:
+        """Return device information."""
+        return {
+            "identifiers": {(DOMAIN, f"{self._origin.lower()}_{self._destination.lower()}_{self._entry.entry_id}")},
+            "name": f"{self._origin_name} to {self._dest_name} Amtrak Tracker",
+            "manufacturer": "Amtrak",
+            "entry_type": "service",
+        }
+
     def _update_internal_state(self) -> None:
         """Filter trains and update state & attributes from coordinator data."""
         trains_data = self.coordinator.data or {}
-        
+
         matched_trains: list[dict[str, Any]] = []
         upcoming_trains: list[dict[str, Any]] = []
 
@@ -112,10 +145,10 @@ class AmtrakTrackerSensor(CoordinatorEntity[AmtrakDataUpdateCoordinator], Sensor
         for train_num, train_list in trains_data.items():
             if not isinstance(train_list, list):
                 continue
-                
+
             for train in train_list:
                 stations = train.get("stations", [])
-                
+
                 # Find indices of origin and destination stops
                 origin_idx = -1
                 dest_idx = -1
@@ -171,7 +204,7 @@ class AmtrakTrackerSensor(CoordinatorEntity[AmtrakDataUpdateCoordinator], Sensor
                         "longitude": train.get("lon"),
                         "speed_mph": train.get("velocity"),
                     }
-                    
+
                     matched_trains.append(train_info)
 
                     # Only count as upcoming if it has not departed from origin yet
@@ -189,51 +222,44 @@ class AmtrakTrackerSensor(CoordinatorEntity[AmtrakDataUpdateCoordinator], Sensor
         upcoming_trains.sort(key=get_sch_dep)
 
         # Build sensor attributes
-        origin_name = self._stations_cache.get(self._origin, {}).get("name", self._origin)
-        dest_name = self._stations_cache.get(self._destination, {}).get("name", self._destination)
-
         attrs: dict[str, Any] = {
             "origin_code": self._origin,
-            "origin_name": origin_name,
+            "origin_name": self._origin_name,
             "destination_code": self._destination,
-            "destination_name": dest_name,
+            "destination_name": self._dest_name,
             "matched_trains_count": len(matched_trains),
             "upcoming_trains_count": len(upcoming_trains),
-            "matched_trains": matched_trains,
-            "upcoming_trains": upcoming_trains,
         }
 
-        # Find the first train that hasn't finished its run to actively track
-        active_train = None
-        for train in matched_trains:
-            if train["arrival_status"] != "Departed" and train["train_state"] != "Completed":
-                active_train = train
-                break
+        train_info = None
+        if self._index < len(upcoming_trains):
+            train_info = upcoming_trains[self._index]
 
-        # If there's an active train, set state and train-specific attributes
-        if active_train:
-            # The state of a TIMESTAMP sensor must be a datetime object
-            try:
-                self._state = datetime.fromisoformat(active_train["estimated_departure"])
-            except ValueError:
-                self._state = None
-                
+        if train_info:
+            if self._sensor_type == "departure":
+                try:
+                    self._state = datetime.fromisoformat(train_info["estimated_departure"])
+                except (ValueError, TypeError):
+                    self._state = None
+            else:
+                self._state = train_info["delay_departure_minutes"]
+
             attrs.update({
-                "train_number": active_train["train_number"],
-                "route_name": active_train["route_name"],
-                "train_id": active_train["train_id"],
-                "train_state": active_train["train_state"],
-                "scheduled_departure": active_train["scheduled_departure"],
-                "estimated_departure": active_train["estimated_departure"],
-                "departure_status": active_train["departure_status"],
-                "scheduled_arrival": active_train["scheduled_arrival"],
-                "estimated_arrival": active_train["estimated_arrival"],
-                "arrival_status": active_train["arrival_status"],
-                "delay_departure_minutes": active_train["delay_departure_minutes"],
-                "delay_arrival_minutes": active_train["delay_arrival_minutes"],
-                "train_latitude": active_train["latitude"],
-                "train_longitude": active_train["longitude"],
-                "train_speed_mph": active_train["speed_mph"],
+                "train_number": train_info["train_number"],
+                "route_name": train_info["route_name"],
+                "train_id": train_info["train_id"],
+                "train_state": train_info["train_state"],
+                "scheduled_departure": train_info["scheduled_departure"],
+                "estimated_departure": train_info["estimated_departure"],
+                "departure_status": train_info["departure_status"],
+                "scheduled_arrival": train_info["scheduled_arrival"],
+                "estimated_arrival": train_info["estimated_arrival"],
+                "arrival_status": train_info["arrival_status"],
+                "delay_departure_minutes": train_info["delay_departure_minutes"],
+                "delay_arrival_minutes": train_info["delay_arrival_minutes"],
+                "train_latitude": train_info["latitude"],
+                "train_longitude": train_info["longitude"],
+                "train_speed_mph": train_info["speed_mph"],
             })
         else:
             self._state = None
@@ -258,7 +284,7 @@ class AmtrakTrackerSensor(CoordinatorEntity[AmtrakDataUpdateCoordinator], Sensor
         self._attributes = attrs
 
     @property
-    def native_value(self) -> datetime | None:
+    def native_value(self) -> Any:
         """Return the state of the sensor."""
         return self._state
 
