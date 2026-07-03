@@ -10,7 +10,7 @@ CONF_START_TIME = "start_time"
 CONF_END_TIME = "end_time"
 
 # Defaults
-DEFAULT_UPDATE_INTERVAL_SECONDS = 120
+DEFAULT_UPDATE_INTERVAL_SECONDS = 30
 
 # API Endpoints
 BASE_URL = "https://api.amtraker.com/v3"
