@@ -262,7 +262,7 @@ async def async_update_train_notifications(
                 "tag": f"amtrak_tracker_{entry.entry_id}",
             }
 
-            if notify_service.startswith("mobile_app_"):
+            if "iphone" in notify_service:
                 # Tailor message for Live Activity: static time is replaced by ticking chronometer,
                 # so we display origin/destination and current delay status in the message.
                 live_activity_message = f"Departing {origin_name} for {dest_name} ({delay_string})"
