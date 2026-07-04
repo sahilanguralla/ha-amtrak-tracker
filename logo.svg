@@ -125,7 +125,7 @@
     <path d="M 326,264 L 317,264 L 316,290 L 325,290 Z" fill="#004F71" />
 
     <!-- Official Amtrak Travelmark Logo on the Nose -->
-    <g fill="#FFFFFF" opacity="0.95" transform="translate(256, 348) scale(0.28) translate(250.5, -502)">
+    <g fill="#FFFFFF" opacity="0.95" transform="translate(256, 345) scale(0.55) translate(250.5, -502)">
       <path d="M-215.2,490c-20,5.5-32.7,9.5-41.8,19.3c4.4,1.8,9,3.5,13,4.7c4.7-9.3,13.2-16.8,28.9-23.6L-215.2,490z" />
       <path d="M-241,492.4c-2.4-0.2-5-0.7-7.1-1.3c-4.4-0.2-27.6-0.8-37.9,3.6c2.8,1.7,5.7,3.4,9.3,5.3c10.3-4.8,23.5-6.5,35.7-7.2V492.4z" />
       <path d="M-226.1,492.3c-3.2,0.4-8.3,0.6-11.4,0.6c-9.2,1-25.4,3.6-34.6,9.3c3.4,1.7,6.8,3.4,10.4,4.9c9.6-8.3,22.5-12,35.6-14.5C-226.1,492.6-226.1,492.3-226.1,492.3z" />
@@ -151,8 +151,9 @@
 
   <!-- Pill with Official Amtrak Logo Wordmark -->
   <g>
-    <rect x="156" y="445" width="200" height="34" rx="17" fill="#071324" stroke="#1A3354" stroke-width="1.5" opacity="0.95" />
-    <g fill="#FFFFFF" transform="translate(256, 462) scale(0.65) translate(173.9, -502)">
+    <!-- Light silver/grey high-contrast pill -->
+    <rect x="116" y="432" width="280" height="48" rx="24" fill="#E8ECEF" stroke="#B0C2D4" stroke-width="2" />
+    <g fill="#004D6E" transform="translate(256, 456) scale(1.0) translate(173.9, -502)">
       <!-- Travelmark symbol -->
       <path d="M-215.2,490c-20,5.5-32.7,9.5-41.8,19.3c4.4,1.8,9,3.5,13,4.7c4.7-9.3,13.2-16.8,28.9-23.6L-215.2,490z" />
       <path d="M-241,492.4c-2.4-0.2-5-0.7-7.1-1.3c-4.4-0.2-27.6-0.8-37.9,3.6c2.8,1.7,5.7,3.4,9.3,5.3c10.3-4.8,23.5-6.5,35.7-7.2V492.4z" />
