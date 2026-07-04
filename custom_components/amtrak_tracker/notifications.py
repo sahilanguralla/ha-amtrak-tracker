@@ -259,6 +259,9 @@ async def async_update_train_notifications(
                 # so we display origin/destination and current delay status in the message.
                 live_activity_message = f"Departing {origin_name} for {dest_name} ({delay_string})"
                 data_payload.update({
+                    "subtitle": delay_string,
+                    "persistent": True,
+                    "sticky": True,
                     "live_update": True,
                 })
                 if when_timestamp is not None:
