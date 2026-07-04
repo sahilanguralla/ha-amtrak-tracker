@@ -103,10 +103,10 @@ class AmtrakTrainSensor(CoordinatorEntity[AmtrakDataUpdateCoordinator], SensorEn
 
         ordinal = {0: "1st", 1: "2nd", 2: "3rd"}[index]
         if sensor_type == "departure":
-            self._attr_name = f"{ordinal} Upcoming Train"
+            self._attr_name = f"#{index + 1} Train Time"
             self._attr_unique_id = f"{DOMAIN}_{self._origin.lower()}_{self._destination.lower()}_{entry.entry_id}_{ordinal.lower()}_upcoming_train"
         else:
-            self._attr_name = f"{ordinal} Train Current Schedule"
+            self._attr_name = f"#{index + 1} Train Delay"
             self._attr_unique_id = f"{DOMAIN}_{self._origin.lower()}_{self._destination.lower()}_{entry.entry_id}_{ordinal.lower()}_train_current_schedule"
             self._attr_native_unit_of_measurement = "min"
 
@@ -282,6 +282,20 @@ class AmtrakTrainSensor(CoordinatorEntity[AmtrakDataUpdateCoordinator], SensorEn
             })
 
         self._attributes = attrs
+
+    @property
+    def name(self) -> str | None:
+        """Return the name of the sensor."""
+        if not self.entity_id:
+            return self._attr_name
+
+        train_number = self._attributes.get("train_number")
+        if not train_number:
+            return self._attr_name
+
+        if self._sensor_type == "departure":
+            return f"#{self._index + 1} Train {train_number} Time"
+        return f"#{self._index + 1} Train {train_number} Delay"
 
     @property
     def native_value(self) -> Any:
