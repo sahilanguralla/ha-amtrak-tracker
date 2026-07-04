@@ -2,149 +2,171 @@
   <defs>
     <!-- Background Gradient -->
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#040814" />
-      <stop offset="50%" stop-color="#0A1024" />
-      <stop offset="100%" stop-color="#121B35" />
+      <stop offset="0%" stop-color="#081426" />
+      <stop offset="50%" stop-color="#0B1E36" />
+      <stop offset="100%" stop-color="#112B4D" />
     </linearGradient>
 
-    <!-- Glowing Effects -->
-    <filter id="neonGlow" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="6" result="blur" />
-      <feMerge>
-        <feMergeNode in="blur" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
-    </filter>
+    <!-- Glowing House Gradient -->
+    <linearGradient id="haGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00E5FF" />
+      <stop offset="100%" stop-color="#03A9F4" />
+    </linearGradient>
 
-    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="12" stdDeviation="15" flood-color="#000000" flood-opacity="0.5" />
-    </filter>
+    <!-- Train Body Gradient -->
+    <linearGradient id="trainBody" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F2F2F2" />
+      <stop offset="40%" stop-color="#D9D9D9" />
+      <stop offset="100%" stop-color="#999999" />
+    </linearGradient>
 
-    <!-- Node Gradients -->
-    <radialGradient id="amtrakNode" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#14264D" />
-      <stop offset="80%" stop-color="#091124" />
-      <stop offset="100%" stop-color="#050A14" />
+    <!-- Train Nose Gradient -->
+    <linearGradient id="trainNose" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#005A87" />
+      <stop offset="70%" stop-color="#003D5C" />
+      <stop offset="100%" stop-color="#002336" />
+    </linearGradient>
+
+    <!-- Headlight Beam Gradient -->
+    <radialGradient id="lightBeam" cx="50%" cy="0%" r="100%">
+      <stop offset="0%" stop-color="#FFFFE0" stop-opacity="0.6" />
+      <stop offset="50%" stop-color="#FFFFA0" stop-opacity="0.2" />
+      <stop offset="100%" stop-color="#FFFFA0" stop-opacity="0" />
     </radialGradient>
 
-    <radialGradient id="haNode" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#0D2E47" />
-      <stop offset="80%" stop-color="#071A29" />
-      <stop offset="100%" stop-color="#040F18" />
-    </radialGradient>
-
-    <!-- Track & Rail Gradients -->
-    <linearGradient id="railGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#004D70" />
-      <stop offset="50%" stop-color="#0080FF" />
-      <stop offset="100%" stop-color="#00E5FF" />
+    <!-- Track Shadow/Glow -->
+    <linearGradient id="trackGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1A2D42" />
+      <stop offset="100%" stop-color="#0E1A29" />
     </linearGradient>
 
-    <linearGradient id="trainBodyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#FFFFFF" />
-      <stop offset="100%" stop-color="#A5C2D4" />
-    </linearGradient>
+    <!-- Drop Shadow Filter for Train -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.6" />
+    </filter>
 
-    <!-- Map line styling -->
-    <linearGradient id="mapLineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#122543" stop-opacity="0.4" />
-      <stop offset="100%" stop-color="#1A335C" stop-opacity="0.1" />
-    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
   </defs>
 
-  <!-- Background Squircle -->
-  <rect width="512" height="512" rx="128" fill="url(#bgGrad)" />
+  <!-- Background -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
 
-  <!-- Background Map Grid / Secondary Routes (Abstract Tech look) -->
-  <g fill="none" stroke="url(#mapLineGrad)" stroke-width="2">
-    <!-- Grid -->
-    <circle cx="256" cy="256" r="320" stroke-width="1" opacity="0.3" />
-    <circle cx="256" cy="256" r="240" stroke-width="1" opacity="0.3" />
-    <circle cx="256" cy="256" r="160" stroke-width="1" opacity="0.3" />
+  <!-- Grid lines / speed lines in background (subtle) -->
+  <path d="M 0,150 L 512,150 M 0,300 L 512,300" stroke="#162E4E" stroke-width="2" opacity="0.3" />
+  <path d="M 150,0 L 150,512 M 362,0 L 362,512" stroke="#162E4E" stroke-width="2" opacity="0.3" />
+
+  <!-- Home Assistant Glowing House Outline in Background -->
+  <path d="M 256,70 L 420,195 L 365,195 L 365,395 L 147,395 L 147,195 L 92,195 Z" 
+        fill="none" 
+        stroke="url(#haGlow)" 
+        stroke-width="16" 
+        stroke-linejoin="round" 
+        stroke-linecap="round"
+        opacity="0.85"
+        filter="url(#glow)" />
+
+  <!-- Home Assistant Internal Nodes (Connected dots in the top area of the house) -->
+  <line x1="256" y1="125" x2="190" y2="180" stroke="#00E5FF" stroke-width="4" opacity="0.8" />
+  <line x1="256" y1="125" x2="322" y2="180" stroke="#00E5FF" stroke-width="4" opacity="0.8" />
+  <line x1="190" y1="180" x2="256" y2="215" stroke="#00E5FF" stroke-width="4" opacity="0.8" />
+  <line x1="322" y1="180" x2="256" y2="215" stroke="#00E5FF" stroke-width="4" opacity="0.8" />
+  
+  <circle cx="256" cy="125" r="10" fill="#FFFFFF" filter="url(#glow)" />
+  <circle cx="190" cy="180" r="8" fill="#00E5FF" />
+  <circle cx="322" cy="180" r="8" fill="#00E5FF" />
+  <circle cx="256" cy="215" r="8" fill="#00E5FF" />
+
+  <!-- Train Tracks in Perspective -->
+  <!-- Ties (Sleepers) -->
+  <polygon points="180,415 332,415 338,427 174,427" fill="url(#trackGrad)" stroke="#2C4059" stroke-width="1.5" />
+  <polygon points="144,440 368,440 376,456 136,456" fill="url(#trackGrad)" stroke="#2C4059" stroke-width="2" />
+  <polygon points="90,475 422,475 432,497 80,497" fill="url(#trackGrad)" stroke="#2C4059" stroke-width="2.5" />
+
+  <!-- Rails -->
+  <polygon points="216,400 220,400 120,512 110,512" fill="#7A8B9E" />
+  <polygon points="296,400 292,400 392,512 402,512" fill="#7A8B9E" />
+  <polygon points="219,400 222,400 135,512 125,512" fill="#B3C3D4" />
+  <polygon points="293,400 290,400 377,512 387,512" fill="#B3C3D4" />
+
+  <!-- Headlight Beam (shining down onto tracks, placed under the train) -->
+  <polygon points="256,310 60,512 452,512" fill="url(#lightBeam)" />
+
+  <!-- Sleek Amtrak-style Train (Front View) -->
+  <g filter="url(#shadow)">
+    <!-- Base / Plow / Skirt -->
+    <path d="M 180,390 L 332,390 L 336,410 L 290,418 L 222,418 L 176,410 Z" fill="#1C1C1C" />
+    <path d="M 190,402 L 322,402 L 318,410 L 194,410 Z" fill="#C01A26" /> <!-- Red Accent stripe at bottom -->
+
+    <!-- Main Train Body Structure -->
+    <path d="M 182,235 C 182,235 256,220 256,220 C 256,220 330,235 330,235 L 340,320 L 335,390 L 177,390 L 172,320 Z" fill="url(#trainBody)" />
     
-    <!-- Secondary Curved Routes (Map lines) -->
-    <path d="M -40,320 C 120,380 300,420 540,380" />
-    <path d="M 120,-20 C 180,180 120,360 80,540" />
-    <path d="M 400,-20 C 320,180 380,360 440,540" opacity="0.7" />
-  </g>
+    <!-- Nose / Center Panel (Amtrak Blue) -->
+    <path d="M 196,255 L 316,255 L 326,320 L 296,380 L 216,380 L 186,320 Z" fill="url(#trainNose)" />
 
-  <!-- The Telemetry Track (Active Connection Route) -->
-  <g fill="none" opacity="0.9">
-    <!-- Outer Glow for the track path -->
-    <path d="M 140,360 C 210,360 300,152 372,152" stroke="#00A3FF" stroke-width="12" opacity="0.15" filter="url(#neonGlow)" stroke-linecap="round" />
-    
-    <!-- Railway Ties (Sleepers) automatically drawn via stroke-dasharray -->
-    <path d="M 140,360 C 210,360 300,152 372,152" stroke="#1A3A5C" stroke-width="8" stroke-dasharray="2 14" stroke-linecap="round" />
+    <!-- Windshield -->
+    <path d="M 204,260 L 308,260 L 302,285 L 210,285 Z" fill="#0B0E14" />
+    <!-- Windshield divider & reflection -->
+    <path d="M 254,260 L 258,260 L 258,285 L 254,285 Z" fill="#2C3540" />
+    <polygon points="212,263 245,263 235,282 212,282" fill="#FFFFFF" opacity="0.12" />
+    <polygon points="262,263 295,263 285,282 262,282" fill="#FFFFFF" opacity="0.12" />
 
-    <!-- Two Steel Rails -->
-    <path d="M 137,363 C 207,363 297,155 369,155" stroke="url(#railGrad)" stroke-width="1.5" />
-    <path d="M 143,357 C 213,357 303,149 375,149" stroke="url(#railGrad)" stroke-width="1.5" />
-  </g>
+    <!-- Sleek Side Panels/Design Elements (Silver/White highlights) -->
+    <path d="M 184,242 L 194,242 L 198,320 L 188,320 Z" fill="#FFFFFF" opacity="0.8" />
+    <path d="M 328,242 L 318,242 L 314,320 L 324,320 Z" fill="#FFFFFF" opacity="0.8" />
 
-  <!-- Origin Station Node: Amtrak -->
-  <g transform="translate(0,0)" filter="url(#softShadow)">
-    <circle cx="140" cy="360" r="48" fill="url(#amtrakNode)" stroke="#005A87" stroke-width="3.5" />
-    <circle cx="140" cy="360" r="48" fill="none" stroke="#00E5FF" stroke-width="1.5" opacity="0.5" filter="url(#neonGlow)" />
-    
-    <!-- Official Amtrak Travelmark inside origin node -->
-    <g fill="#FFFFFF" transform="translate(140, 360) scale(0.65) translate(250.5, -502)">
+    <!-- Red and Blue Accent Stripes on upper sides -->
+    <path d="M 185,246 L 194,246 L 195,258 L 186,258 Z" fill="#C01A26" />
+    <path d="M 327,246 L 318,246 L 317,258 L 326,258 Z" fill="#C01A26" />
+
+    <path d="M 186,264 L 195,264 L 196,290 L 187,290 Z" fill="#004F71" />
+    <path d="M 326,264 L 317,264 L 316,290 L 325,290 Z" fill="#004F71" />
+
+    <!-- Official Amtrak Travelmark Logo on the Nose -->
+    <g fill="#FFFFFF" opacity="0.95" transform="translate(256, 348) scale(0.28) translate(250.5, -502)">
       <path d="M-215.2,490c-20,5.5-32.7,9.5-41.8,19.3c4.4,1.8,9,3.5,13,4.7c4.7-9.3,13.2-16.8,28.9-23.6L-215.2,490z" />
       <path d="M-241,492.4c-2.4-0.2-5-0.7-7.1-1.3c-4.4-0.2-27.6-0.8-37.9,3.6c2.8,1.7,5.7,3.4,9.3,5.3c10.3-4.8,23.5-6.5,35.7-7.2V492.4z" />
       <path d="M-226.1,492.3c-3.2,0.4-8.3,0.6-11.4,0.6c-9.2,1-25.4,3.6-34.6,9.3c3.4,1.7,6.8,3.4,10.4,4.9c9.6-8.3,22.5-12,35.6-14.5C-226.1,492.6-226.1,492.3-226.1,492.3z" />
     </g>
+
+    <!-- Center Headlight (High-intensity LED) -->
+    <rect x="244" y="304" width="24" height="12" rx="4" fill="#1C1C1C" />
+    <circle cx="256" cy="310" r="5" fill="#FFFFFF" filter="url(#glow)" />
+    <circle cx="256" cy="310" r="2.5" fill="#FFFFE0" />
+
+    <!-- Ditch Lights (Bottom corner lights, typical of US locomotives) -->
+    <circle cx="210" cy="396" r="6" fill="#222" />
+    <circle cx="210" cy="396" r="4.5" fill="#FFF" filter="url(#glow)" />
+    <circle cx="210" cy="396" r="2" fill="#FFF" />
+
+    <circle cx="302" cy="396" r="6" fill="#222" />
+    <circle cx="302" cy="396" r="4.5" fill="#FFF" filter="url(#glow)" />
+    <circle cx="302" cy="396" r="2" fill="#FFF" />
+
+    <!-- Cabin Roof/Vent Details -->
+    <rect x="236" y="224" width="40" height="4" fill="#333" opacity="0.7" />
   </g>
 
-  <!-- Destination Station Node: Home Assistant -->
-  <g transform="translate(0,0)" filter="url(#softShadow)">
-    <circle cx="372" cy="152" r="48" fill="url(#haNode)" stroke="#03A9F4" stroke-width="3.5" />
-    <circle cx="372" cy="152" r="48" fill="none" stroke="#00E5FF" stroke-width="1.5" opacity="0.5" filter="url(#neonGlow)" />
-    
-    <!-- Home Assistant House Logo inside destination node -->
-    <g fill="none" stroke="#00E5FF" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" transform="translate(372, 150) scale(0.72)">
-      <!-- House outline -->
-      <path d="M -25,-8 L 0,-28 L 25,-8 L 17,-8 L 17,20 L -17,20 L -17,-8 Z" />
-      <!-- Connection lines -->
-      <line x1="0" y1="-12" x2="-8" y2="-2" stroke-width="2" />
-      <line x1="0" y1="-12" x2="8" y2="-2" stroke-width="2" />
-      <line x1="-8" y1="-2" x2="0" y2="6" stroke-width="2" />
-      <line x1="8" y1="-2" x2="0" y2="6" stroke-width="2" />
-      <!-- Nodes -->
-      <circle cx="0" cy="-12" r="4.5" fill="#FFFFFF" stroke="none" />
-      <circle cx="-8" cy="-2" r="3.5" fill="#00E5FF" stroke="none" />
-      <circle cx="8" cy="-2" r="3.5" fill="#00E5FF" stroke="none" />
-      <circle cx="0" cy="6" r="3.5" fill="#00E5FF" stroke="none" />
+  <!-- Pill with Official Amtrak Logo Wordmark -->
+  <g>
+    <rect x="156" y="445" width="200" height="34" rx="17" fill="#071324" stroke="#1A3354" stroke-width="1.5" opacity="0.95" />
+    <g fill="#FFFFFF" transform="translate(256, 462) scale(0.65) translate(173.9, -502)">
+      <!-- Travelmark symbol -->
+      <path d="M-215.2,490c-20,5.5-32.7,9.5-41.8,19.3c4.4,1.8,9,3.5,13,4.7c4.7-9.3,13.2-16.8,28.9-23.6L-215.2,490z" />
+      <path d="M-241,492.4c-2.4-0.2-5-0.7-7.1-1.3c-4.4-0.2-27.6-0.8-37.9,3.6c2.8,1.7,5.7,3.4,9.3,5.3c10.3-4.8,23.5-6.5,35.7-7.2V492.4z" />
+      <path d="M-226.1,492.3c-3.2,0.4-8.3,0.6-11.4,0.6c-9.2,1-25.4,3.6-34.6,9.3c3.4,1.7,6.8,3.4,10.4,4.9c9.6-8.3,22.5-12,35.6-14.5C-226.1,492.6-226.1,492.3-226.1,492.3z" />
+      <!-- Wordmark -->
+      <path d="M-217.1,498.5l-8.4,12.4h5.6l1.3-2.1h8.8l1.3,2.1h6.2l-8.4-12.4H-217.1z M-217.1,506.4l3-4.9l3,4.9H-217.1z" />
+      <polygon points="-178.7,498.5 -183.6,507 -188.5,498.5 -194.8,498.5 -198.5,511 -192.8,511 -190.9,503 -186.3,511 -180.9,511 -176.4,503 -174.5,511 -168.7,511 -172.4,498.5" />
+      <polygon points="-166,501.4 -158.6,501.4 -158.6,511 -152.8,511 -152.8,501.4 -145.8,501.4 -145.2,498.5 -165.5,498.5" />
+      <path d="M-120.8,502.6c0-1.9-1.3-2.9-3.2-3.5c-2.1-0.5-4.7-0.6-7.2-0.6c-4.8,0-8.9,0-8.9,0v12.4h5.8v-3.7h4.9l3,3.9h6.6l-4.3-4.8C-121.7,505.6-120.8,504.1-120.8,502.6z M-128.3,504.6c-0.7,0.1-1.4,0.2-2.5,0.2c-1,0-3.5,0-3.5,0V501c0,0,2.8,0,3.6,0c3,0,4.2,0.6,4.2,1.8C-126.5,503.8-127.3,504.5-128.3,504.6z" />
+      <path d="M-107.4,498.5l-8.4,12.4h5.6l1.3-2.1h8.8l1.3,2.1h6.2l-8.4-12.4H-107.4z M-107.4,506.4l3-4.9l3,4.9H-107.4z" />
+      <polygon points="-68.2,498.5 -75.1,498.5 -81.9,504.1 -81.9,498.5 -87.7,498.5 -87.7,511 -81.9,511 -81.9,505.1 -75.1,511 -67.5,511 -75.9,504.5" />
+      <!-- Registered Trademark symbol -->
+      <path d="M-63,500.2c0-0.5-0.4-0.7-1-0.7h-1.1v2.8h0.4V501v-0.4v-0.8h0.6c0.2,0,0.6,0.1,0.6,0.4c0,0.5-0.4,0.5-0.6,0.5h-0.5v0.4h0.4l0.7,1.2h0.5l-0.7-1.2C-63.3,500.9-63,500.7-63,500.2z" />
+      <path d="M-64.2,498.3c-1.3,0-2.4,1-2.4,2.4c0,1.4,1.1,2.4,2.4,2.4s2.4-1,2.4-2.4C-61.8,499.4-62.9,498.3-64.2,498.3z M-64.2,502.6c-1.1,0.1-1.9-0.7-1.9-1.9c0-1.1,0.8-1.9,1.9-1.9s1.9,0.8,1.9,1.9S-63.1,502.6-64.2,502.6z" />
     </g>
-  </g>
-
-  <!-- Active Train Target Tracker overlay -->
-  <g transform="translate(256, 256)" filter="url(#neonGlow)">
-    <!-- Radar ring around train -->
-    <circle cx="0" cy="0" r="36" fill="none" stroke="#00E5FF" stroke-width="1" stroke-dasharray="3 4" opacity="0.6" />
-    <circle cx="0" cy="0" r="28" fill="none" stroke="#00E5FF" stroke-width="1.5" opacity="0.3" />
-    
-    <!-- Target crosshair ticks -->
-    <line x1="-36" y1="0" x2="-28" y2="0" stroke="#00E5FF" stroke-width="1.5" />
-    <line x1="36" y1="0" x2="28" y2="0" stroke="#00E5FF" stroke-width="1.5" />
-    <line x1="0" y1="-36" x2="0" y2="-28" stroke="#00E5FF" stroke-width="1.5" />
-    <line x1="0" y1="36" x2="0" y2="28" stroke="#00E5FF" stroke-width="1.5" />
-  </g>
-
-  <!-- The Train (En Route, mathematically centered & rotated at -52 degrees) -->
-  <g transform="translate(256, 256) rotate(-52)" filter="url(#softShadow)">
-    <!-- Train Cab Shadow / Skirt -->
-    <path d="M -36,8 L 16,8 C 26,8 36,4 36,0 C 36,-4 26,-8 16,-8 L -36,-8 Z" fill="#080F1D" />
-    
-    <!-- Sleek Aerodynamic Train Body -->
-    <path d="M -34,6 L 16,6 C 24,6 32,3 34,0 C 32,-3 24,-6 16,-6 L -34,-6 Z" fill="url(#trainBodyGrad)" />
-
-    <!-- Blue Window Band -->
-    <path d="M -24,4 L 14,4 C 18,4 22,2 24,0 C 22,-2 18,-4 14,-4 L -24,-4 Z" fill="#0B1326" />
-    
-    <!-- Red Accent Speed Stripe -->
-    <path d="M -34,-4 L 10,-4 C 13,-4 15,-3 16,-2 L 18,0 L -34,0 Z" fill="#FF2E5F" />
-
-    <!-- Glowing Nose Headlight -->
-    <circle cx="34" cy="0" r="3.5" fill="#FFFFFF" filter="url(#neonGlow)" />
-    <circle cx="34" cy="0" r="1.5" fill="#FFEAA7" />
   </g>
 </svg>
