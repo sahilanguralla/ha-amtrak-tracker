@@ -11,6 +11,7 @@ NOTIFY_DOMAIN = "notify"
 PERSISTENT_NOTIFICATION = "persistent_notification"
 MOBILE_APP_DOMAIN = "mobile_app"
 MOBILE_APP_DEVICE_NAME = "device_name"
+MOBILE_APP_WEBHOOK_ID = "webhook_id"
 LEGACY_NOTIFY_SERVICES_TO_SKIP = frozenset(
     {PERSISTENT_NOTIFICATION, "send_message", "notify"}
 )
@@ -69,7 +70,7 @@ def is_mobile_app_push_target(hass: HomeAssistant, target: str) -> bool:
     if target.startswith(f"{NOTIFY_DOMAIN}."):
         entity_entry = er.async_get(hass).async_get(target)
         return bool(entity_entry and entity_entry.platform == MOBILE_APP_DOMAIN)
-    return target.startswith("mobile_app_")
+    return target in _mobile_app_registered_targets(hass) or target.startswith("mobile_app_")
 
 
 def mobile_app_entity_to_service_name(
@@ -77,14 +78,49 @@ def mobile_app_entity_to_service_name(
 ) -> str | None:
     """Map a mobile_app notify entity to its legacy notify service name."""
     config_entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
+
+    registered_target = _mobile_app_entity_to_registered_service_name(hass, config_entry)
+    if registered_target:
+        return registered_target
+
+    notify_services = hass.services.async_services().get(NOTIFY_DOMAIN, {})
+    entity_object_id = entity_entry.entity_id.removeprefix(f"{NOTIFY_DOMAIN}.")
+    entity_id_service_name = slugify(f"{MOBILE_APP_DOMAIN}_{entity_object_id}")
+    if entity_id_service_name in notify_services:
+        return entity_id_service_name
+
+    if not config_entry:
+        return entity_id_service_name
+
+    if device_name := config_entry.data.get(MOBILE_APP_DEVICE_NAME):
+        return slugify(f"{MOBILE_APP_DOMAIN}_{device_name}")
+
+    return entity_id_service_name
+
+
+def _mobile_app_registered_targets(hass: HomeAssistant) -> dict[str, Any]:
+    """Return mobile_app legacy notify service targets registered in Home Assistant."""
+    notify_service = hass.data.get(MOBILE_APP_DOMAIN, {}).get("notify")
+    return getattr(notify_service, "registered_targets", {}) or {}
+
+
+def _mobile_app_entity_to_registered_service_name(
+    hass: HomeAssistant,
+    config_entry: Any | None,
+) -> str | None:
+    """Resolve a mobile_app notify entity using Home Assistant's registered target map."""
     if not config_entry:
         return None
 
-    device_name = config_entry.data.get(MOBILE_APP_DEVICE_NAME)
-    if not device_name:
+    webhook_id = config_entry.data.get(MOBILE_APP_WEBHOOK_ID)
+    if not webhook_id:
         return None
 
-    return slugify(f"{MOBILE_APP_DOMAIN}_{device_name}")
+    for service_name, target_webhook_id in _mobile_app_registered_targets(hass).items():
+        if target_webhook_id == webhook_id:
+            return service_name
+
+    return None
 
 
 def resolve_notify_service_name(hass: HomeAssistant, target: str) -> str:
@@ -125,6 +161,7 @@ async def async_send_notify(
             PERSISTENT_NOTIFICATION,
             "create",
             payload,
+            blocking=True,
         )
         return
 
@@ -135,21 +172,26 @@ async def async_send_notify(
             payload = {"title": title, "message": message}
             if data:
                 payload["data"] = data
-            await hass.services.async_call(NOTIFY_DOMAIN, service_name, payload)
+            await hass.services.async_call(NOTIFY_DOMAIN, service_name, payload, blocking=True)
             return
 
         payload = {
-            "entity_id": target,
             "title": title,
             "message": message,
         }
-        await hass.services.async_call(NOTIFY_DOMAIN, "send_message", payload)
+        await hass.services.async_call(
+            NOTIFY_DOMAIN,
+            "send_message",
+            payload,
+            target={"entity_id": target},
+            blocking=True,
+        )
         return
 
     payload = {"title": title, "message": message}
     if data:
         payload["data"] = data
-    await hass.services.async_call(NOTIFY_DOMAIN, target, payload)
+    await hass.services.async_call(NOTIFY_DOMAIN, target, payload, blocking=True)
 
 
 async def async_clear_notify(
@@ -165,6 +207,7 @@ async def async_clear_notify(
             PERSISTENT_NOTIFICATION,
             "dismiss",
             {"notification_id": notification_id},
+            blocking=True,
         )
         return
 
@@ -183,4 +226,5 @@ async def async_clear_notify(
             "message": "clear_notification",
             "data": {"tag": tag},
         },
+        blocking=True,
     )
