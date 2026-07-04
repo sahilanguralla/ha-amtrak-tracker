@@ -68,10 +68,23 @@ def setup_mock_services(hass: HomeAssistant) -> dict[str, list[ServiceCall]]:
     @callback
     def mock_pn_create(call: ServiceCall) -> None:
         calls["persistent_notification_create"].append(call)
+        notifications = hass.data.setdefault("persistent_notification", {})
+        nid = call.data.get("notification_id")
+        if nid:
+            notifications[nid] = {
+                "notification_id": nid,
+                "message": call.data.get("message"),
+                "title": call.data.get("title"),
+                "created_at": dt_util.now(),
+            }
 
     @callback
     def mock_pn_dismiss(call: ServiceCall) -> None:
         calls["persistent_notification_dismiss"].append(call)
+        notifications = hass.data.setdefault("persistent_notification", {})
+        nid = call.data.get("notification_id")
+        if nid in notifications:
+            del notifications[nid]
 
     @callback
     def mock_notify(call: ServiceCall) -> None:
@@ -220,7 +233,8 @@ async def test_notification_dismiss_when_train_departed(hass: HomeAssistant, aio
         service_calls["persistent_notification_dismiss"].clear()
 
         # Update train status to Departed
-        departed_trains = dict(MOCK_TRAINS)
+        import copy
+        departed_trains = copy.deepcopy(MOCK_TRAINS)
         departed_trains["101"][0]["stations"][0]["status"] = "Departed"
         aioclient_mock.clear_requests()
         aioclient_mock.get(STATIONS_URL, json=MOCK_STATIONS)
@@ -346,3 +360,53 @@ async def test_options_flow_and_reload(hass: HomeAssistant, aioclient_mock) -> N
             assert result2["type"] == "create_entry"
             # Verify options reload was triggered
             mock_reload.assert_called_once_with(config_entry.entry_id)
+
+
+async def test_notification_recreation_on_dismiss(hass: HomeAssistant, aioclient_mock) -> None:
+    """Test notification is recreated if dismissed but the train is still upcoming."""
+    aioclient_mock.get(STATIONS_URL, json=MOCK_STATIONS)
+    aioclient_mock.get(TRAINS_URL, json=MOCK_TRAINS)
+
+    service_calls = setup_mock_services(hass)
+
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="NYP to PHL Tracker",
+        data={
+            "origin": "NYP",
+            "destination": "PHL",
+            "days": ["friday"],
+            "start_time": "08:00",
+            "end_time": "17:00",
+            CONF_NOTIFY_ENABLED: True,
+            CONF_NOTIFY_SERVICE: "persistent_notification",
+        },
+    )
+    config_entry.add_to_hass(hass)
+
+    with patch("homeassistant.util.dt.now", return_value=MOCK_NOW):
+        assert await hass.config_entries.async_setup(config_entry.entry_id) is True
+        await hass.async_block_till_done()
+
+        # Notification should be created
+        assert len(service_calls["persistent_notification_create"]) == 1
+        service_calls["persistent_notification_create"].clear()
+
+        # Simulate user dismissing the notification manually
+        nid = f"amtrak_tracker_{config_entry.entry_id}"
+        notifications = hass.data.get("persistent_notification", {})
+        assert nid in notifications
+        del notifications[nid]
+
+        # Update coordinator (data unchanged)
+        coordinator = hass.data[DOMAIN]["coordinator"]
+        await coordinator.async_refresh()
+        await hass.async_block_till_done()
+
+        # Notification should be recreated since it was dismissed
+        assert len(service_calls["persistent_notification_create"]) == 1
+        assert service_calls["persistent_notification_create"][0].data == {
+            "title": "Upcoming Train 101 (15 min delay)",
+            "message": "Departing New York Penn Station at 9:15 AM for Philadelphia 30th Street.",
+            "notification_id": nid,
+        }

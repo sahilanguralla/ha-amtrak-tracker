@@ -92,10 +92,12 @@ class AmtrakTrainSensor(CoordinatorEntity[AmtrakDataUpdateCoordinator], SensorEn
         if sensor_type == "departure":
             self._attr_name = f"#{index + 1} Train Time"
             self._attr_unique_id = f"{DOMAIN}_{self._origin.lower()}_{self._destination.lower()}_{entry.entry_id}_{ordinal.lower()}_upcoming_train"
+            self._attr_icon = "mdi:train"
         else:
             self._attr_name = f"#{index + 1} Train Delay"
             self._attr_unique_id = f"{DOMAIN}_{self._origin.lower()}_{self._destination.lower()}_{entry.entry_id}_{ordinal.lower()}_train_current_schedule"
             self._attr_native_unit_of_measurement = "min"
+            self._attr_icon = "mdi:timer-alert-outline"
 
         self._state: Any = None
         self._attributes: dict[str, Any] = {}

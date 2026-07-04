@@ -126,12 +126,14 @@ async def test_sensors_setup_and_update(hass: HomeAssistant, aioclient_mock) -> 
     assert state.name == "New York Penn Station to Philadelphia 30th Street Amtrak Tracker #1 Train 101 Time"
     assert state.attributes["train_number"] == "101"
     assert state.attributes["upcoming_trains_count"] == 2
+    assert state.attributes["icon"] == "mdi:train"
 
     # Check 1st schedule delay state (5 mins delay)
     state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1_train_delay")
     assert state is not None
     assert state.state == "5"
     assert state.name == "New York Penn Station to Philadelphia 30th Street Amtrak Tracker #1 Train 101 Delay"
+    assert state.attributes["icon"] == "mdi:timer-alert-outline"
 
     # Check 2nd upcoming train state (Train 103 departure NYP is 12:00 PM)
     state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_2_train_time")
