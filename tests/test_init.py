@@ -40,7 +40,7 @@ async def test_setup_unload_entry(hass: HomeAssistant, aioclient_mock) -> None:
         "homeassistant.config_entries.ConfigEntries.async_forward_entry_setups",
         return_value=True,
     ) as mock_forward_setups:
-        assert await async_setup_entry(hass, config_entry) is True
+        assert await hass.config_entries.async_setup(config_entry.entry_id) is True
         await hass.async_block_till_done()
 
     assert DOMAIN in hass.data
@@ -53,7 +53,7 @@ async def test_setup_unload_entry(hass: HomeAssistant, aioclient_mock) -> None:
         "homeassistant.config_entries.ConfigEntries.async_unload_platforms",
         return_value=True,
     ) as mock_unload_platforms:
-        assert await async_unload_entry(hass, config_entry) is True
+        assert await hass.config_entries.async_unload(config_entry.entry_id) is True
         await hass.async_block_till_done()
 
     assert len(mock_unload_platforms.mock_calls) == 1
@@ -83,13 +83,14 @@ async def test_setup_entry_stations_fetch_failure(hass: HomeAssistant, aioclient
         "homeassistant.config_entries.ConfigEntries.async_forward_entry_setups",
         return_value=True,
     ):
-        assert await async_setup_entry(hass, config_entry) is True
+        assert await hass.config_entries.async_setup(config_entry.entry_id) is True
         await hass.async_block_till_done()
 
     assert hass.data[DOMAIN]["stations"] == {}
 
     # Unload and retry with exception
-    await async_unload_entry(hass, config_entry)
+    await hass.config_entries.async_unload(config_entry.entry_id)
+    await hass.async_block_till_done()
     
     # 2. Client exception
     aioclient_mock.clear_requests()
@@ -100,7 +101,7 @@ async def test_setup_entry_stations_fetch_failure(hass: HomeAssistant, aioclient
         "homeassistant.config_entries.ConfigEntries.async_forward_entry_setups",
         return_value=True,
     ):
-        assert await async_setup_entry(hass, config_entry) is True
+        assert await hass.config_entries.async_setup(config_entry.entry_id) is True
         await hass.async_block_till_done()
 
     assert hass.data[DOMAIN]["stations"] == {}

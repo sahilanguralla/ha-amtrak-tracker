@@ -20,22 +20,9 @@ from .const import (
     CONF_END_TIME,
 )
 from .__init__ import AmtrakDataUpdateCoordinator
+from .notifications import calculate_delay_minutes
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def calculate_delay_minutes(scheduled_str: str | None, estimated_str: str | None) -> int | None:
-    """Calculate the delay in minutes between scheduled and estimated/actual times."""
-    if not scheduled_str or not estimated_str:
-        return None
-    try:
-        sch = datetime.fromisoformat(scheduled_str)
-        est = datetime.fromisoformat(estimated_str)
-        diff = est - sch
-        return int(diff.total_seconds() / 60)
-    except Exception as err:
-        _LOGGER.debug("Error calculating delay from %s and %s: %s", scheduled_str, estimated_str, err)
-        return None
 
 
 async def async_setup_entry(
@@ -91,11 +78,11 @@ class AmtrakTrainSensor(CoordinatorEntity[AmtrakDataUpdateCoordinator], SensorEn
         self._index = index
         self._sensor_type = sensor_type
 
-        self._origin = entry.data[CONF_ORIGIN]
-        self._destination = entry.data[CONF_DESTINATION]
-        self._days = entry.data[CONF_DAYS]
-        self._start_time = entry.data[CONF_START_TIME]
-        self._end_time = entry.data[CONF_END_TIME]
+        self._origin = entry.options.get(CONF_ORIGIN, entry.data.get(CONF_ORIGIN))
+        self._destination = entry.options.get(CONF_DESTINATION, entry.data.get(CONF_DESTINATION))
+        self._days = entry.options.get(CONF_DAYS, entry.data.get(CONF_DAYS))
+        self._start_time = entry.options.get(CONF_START_TIME, entry.data.get(CONF_START_TIME))
+        self._end_time = entry.options.get(CONF_END_TIME, entry.data.get(CONF_END_TIME))
 
         # Use station names from cache if available, otherwise default to code
         self._origin_name = stations_cache.get(self._origin, {}).get("name", self._origin)
