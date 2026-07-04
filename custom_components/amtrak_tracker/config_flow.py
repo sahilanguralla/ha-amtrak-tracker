@@ -2,29 +2,31 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
-import aiohttp
 from datetime import datetime
-import voluptuous as vol
+from typing import Any
 
+import aiohttp
+import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
-    DOMAIN,
-    CONF_ORIGIN,
-    CONF_DESTINATION,
     CONF_DAYS,
-    CONF_START_TIME,
+    CONF_DESTINATION,
     CONF_END_TIME,
     CONF_NOTIFY_ENABLED,
     CONF_NOTIFY_SERVICE,
+    CONF_ORIGIN,
+    CONF_START_TIME,
+    DOMAIN,
     STATIONS_URL,
 )
+from .notify_targets import get_notify_target_options
 
 _LOGGER = logging.getLogger(__name__)
+
 
 async def validate_input(
     hass: HomeAssistant, data: dict[str, Any], stations: dict[str, Any] | None = None
@@ -168,14 +170,7 @@ class AmtrakTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             origin_selector = selector.TextSelector()
             dest_selector = selector.TextSelector()
 
-        notify_services = sorted(self.hass.services.async_services().get("notify", {}).keys())
-        notify_options = [
-            {"value": "persistent_notification", "label": "Persistent Notification (built-in)"}
-        ] + [
-            {"value": svc, "label": f"Notify service: {svc}"}
-            for svc in notify_services
-            if svc != "persistent_notification"
-        ]
+        notify_options = get_notify_target_options(self.hass)
 
         schema = vol.Schema(
             {
@@ -260,14 +255,7 @@ class AmtrakTrackerOptionsFlowHandler(config_entries.OptionsFlow):
             self.config_entry.data.get(CONF_END_TIME, "17:00")
         )
 
-        notify_services = sorted(self.hass.services.async_services().get("notify", {}).keys())
-        notify_options = [
-            {"value": "persistent_notification", "label": "Persistent Notification (built-in)"}
-        ] + [
-            {"value": svc, "label": f"Notify service: {svc}"}
-            for svc in notify_services
-            if svc != "persistent_notification"
-        ]
+        notify_options = get_notify_target_options(self.hass)
 
         schema = vol.Schema(
             {
@@ -303,5 +291,4 @@ class AmtrakTrackerOptionsFlowHandler(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="init", data_schema=schema
         )
-
 
