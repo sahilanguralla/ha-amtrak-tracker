@@ -55,3 +55,9 @@ Common types:
 
 Example:
 `feat(sensor): add train station schedule tracking`
+
+## Pull Request & Branching Guidelines
+- **Branching Strategy**: Always develop, modify, or test code in a dedicated feature branch. Do not push changes directly to the `main` branch.
+- **PR Integration**: Pull requests must be squash-merged into the `main` branch to enforce a clean, linear history (enforced via branch protection rules). Head branches are configured to be automatically deleted upon merge.
+- **PR Titles**: Since the repository is configured to use the Pull Request title as the squash commit message, the PR title must follow the **Conventional Commits** specification (e.g., `feat(sensor): add train station schedule tracking`).
+- **Required Checks**: Ensure all status checks (e.g., tests, linting, validation) pass before merging.
