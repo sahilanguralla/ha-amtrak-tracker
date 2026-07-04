@@ -10,7 +10,12 @@ on:
 jobs:
   bump-version:
     name: Bump version and create changelog with commitizen
-    if: github.event.pull_request.merged == true && (contains(github.event.pull_request.labels.*.name, 'release') || contains(github.event.pull_request.labels.*.name, 'Release'))
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true && (
+        contains(github.event.pull_request.labels.*.name, 'release') ||
+        contains(github.event.pull_request.labels.*.name, 'Release')
+      ))
     runs-on: ubuntu-latest
     permissions:
       contents: write
