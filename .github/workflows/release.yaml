@@ -28,12 +28,16 @@ jobs:
         id: tag_check
         run: |
           if git rev-parse "refs/tags/${{ steps.get_version.outputs.version }}" >/dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Tag ${{ steps.get_version.outputs.version }} already exists. Skipping release."
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "Tag ${{ steps.get_version.outputs.version }} does not exist. Proceeding with release."
+            TAG_COMMIT=$(git rev-parse "refs/tags/${{ steps.get_version.outputs.version }}^{commit}" 2>/dev/null)
+            HEAD_COMMIT=$(git rev-parse HEAD)
+            if [ "$TAG_COMMIT" != "$HEAD_COMMIT" ]; then
+              echo "exists=true" >> $GITHUB_OUTPUT
+              echo "Tag ${{ steps.get_version.outputs.version }} already exists on a different commit. Skipping release."
+              exit 0
+            fi
           fi
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "Proceeding with release for tag ${{ steps.get_version.outputs.version }}."
 
       - name: Create Release
         if: steps.tag_check.outputs.exists == 'false'
