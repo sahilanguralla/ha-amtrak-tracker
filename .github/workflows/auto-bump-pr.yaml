@@ -1,7 +1,7 @@
 name: Auto Bump Version
 
 on:
-  pull_request:
+  pull_request_target:
     types: [closed]
     branches: [main]
 
@@ -10,13 +10,14 @@ on:
 jobs:
   bump-version:
     name: Bump version and create changelog with commitizen
-    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
+    if: github.event.pull_request.merged == true && (contains(github.event.pull_request.labels.*.name, 'release') || contains(github.event.pull_request.labels.*.name, 'Release'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.pull_request.base.ref }}
           fetch-depth: 0
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
 
@@ -30,8 +31,8 @@ jobs:
 
       - name: Configure Git User
         run: |
-          git config user.name "Raven"
-          git config user.email "raven[bot]@users.noreply.github.com"
+          git config user.name "Sahil Anguralla"
+          git config user.email "anguralla.sahil@gmail.com"
 
       - name: Bump version
         id: cz_bump
