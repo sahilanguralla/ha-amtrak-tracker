@@ -1,10 +1,10 @@
 """Test upcoming train notifications for Amtrak Tracker."""
 
 from datetime import datetime
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import pytest
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback, ServiceCall
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 import homeassistant.util.dt as dt_util
 
@@ -57,10 +57,40 @@ MOCK_TRAINS = {
 }
 
 
+def setup_mock_services(hass: HomeAssistant) -> dict[str, list[ServiceCall]]:
+    """Register mock services to capture calls."""
+    calls = {
+        "persistent_notification_create": [],
+        "persistent_notification_dismiss": [],
+        "notify": [],
+    }
+
+    @callback
+    def mock_pn_create(call: ServiceCall) -> None:
+        calls["persistent_notification_create"].append(call)
+
+    @callback
+    def mock_pn_dismiss(call: ServiceCall) -> None:
+        calls["persistent_notification_dismiss"].append(call)
+
+    @callback
+    def mock_notify(call: ServiceCall) -> None:
+        calls["notify"].append(call)
+
+    hass.services.async_register("persistent_notification", "create", mock_pn_create)
+    hass.services.async_register("persistent_notification", "dismiss", mock_pn_dismiss)
+    hass.services.async_register("notify", "persistent_notification", mock_notify)
+    hass.services.async_register("notify", "mobile_app_my_iphone", mock_notify)
+
+    return calls
+
+
 async def test_notification_creation_and_deduplication(hass: HomeAssistant, aioclient_mock) -> None:
     """Test notification is created, updated on changes, and skipped on duplicate data."""
     aioclient_mock.get(STATIONS_URL, json=MOCK_STATIONS)
     aioclient_mock.get(TRAINS_URL, json=MOCK_TRAINS)
+
+    service_calls = setup_mock_services(hass)
 
     config_entry = MockConfigEntry(
         domain=DOMAIN,
@@ -77,27 +107,20 @@ async def test_notification_creation_and_deduplication(hass: HomeAssistant, aioc
     )
     config_entry.add_to_hass(hass)
 
-    with patch("homeassistant.util.dt.now", return_value=MOCK_NOW), \
-         patch.object(hass.services, "async_call", autospec=True) as mock_call:
-        
+    with patch("homeassistant.util.dt.now", return_value=MOCK_NOW):
         # Setup entry
         assert await hass.config_entries.async_setup(config_entry.entry_id) is True
         await hass.async_block_till_done()
 
-        print("ACTUAL MOCK CALLS:", mock_call.mock_calls)
-
-        mock_call.assert_any_call(
-            "persistent_notification",
-            "create",
-            {
-                "title": "Upcoming Train 101 (15 min delay)",
-                "message": "Departing New York Penn Station at 9:15 AM for Philadelphia 30th Street.",
-                "notification_id": f"amtrak_tracker_{config_entry.entry_id}",
-            }
-        )
+        # Notification should be created
+        assert len(service_calls["persistent_notification_create"]) == 1
+        assert service_calls["persistent_notification_create"][0].data == {
+            "title": "Upcoming Train 101 (15 min delay)",
+            "message": "Departing New York Penn Station at 9:15 AM for Philadelphia 30th Street.",
+            "notification_id": f"amtrak_tracker_{config_entry.entry_id}",
+        }
         
-        # Reset mock
-        mock_call.reset_mock()
+        service_calls["persistent_notification_create"].clear()
 
         # Update coordinator (data unchanged)
         coordinator = hass.data[DOMAIN]["coordinator"]
@@ -105,7 +128,7 @@ async def test_notification_creation_and_deduplication(hass: HomeAssistant, aioc
         await hass.async_block_till_done()
 
         # No new notification should be sent (de-duplication)
-        assert not any(call[0][0] == "persistent_notification" and call[0][1] == "create" for call in mock_call.mock_calls)
+        assert len(service_calls["persistent_notification_create"]) == 0
 
         # Update coordinator with new delay (30 mins delay)
         import copy
@@ -118,21 +141,21 @@ async def test_notification_creation_and_deduplication(hass: HomeAssistant, aioc
         await coordinator.async_refresh()
         await hass.async_block_till_done()
 
-        mock_call.assert_any_call(
-            "persistent_notification",
-            "create",
-            {
-                "title": "Upcoming Train 101 (30 min delay)",
-                "message": "Departing New York Penn Station at 9:30 AM for Philadelphia 30th Street.",
-                "notification_id": f"amtrak_tracker_{config_entry.entry_id}",
-            }
-        )
+        # Notification should be updated
+        assert len(service_calls["persistent_notification_create"]) == 1
+        assert service_calls["persistent_notification_create"][0].data == {
+            "title": "Upcoming Train 101 (30 min delay)",
+            "message": "Departing New York Penn Station at 9:30 AM for Philadelphia 30th Street.",
+            "notification_id": f"amtrak_tracker_{config_entry.entry_id}",
+        }
 
 
 async def test_notification_custom_device_service(hass: HomeAssistant, aioclient_mock) -> None:
     """Test notification is sent to custom notify service when selected."""
     aioclient_mock.get(STATIONS_URL, json=MOCK_STATIONS)
     aioclient_mock.get(TRAINS_URL, json=MOCK_TRAINS)
+
+    service_calls = setup_mock_services(hass)
 
     config_entry = MockConfigEntry(
         domain=DOMAIN,
@@ -149,32 +172,30 @@ async def test_notification_custom_device_service(hass: HomeAssistant, aioclient
     )
     config_entry.add_to_hass(hass)
 
-    with patch("homeassistant.util.dt.now", return_value=MOCK_NOW), \
-         patch.object(hass.services, "async_call", autospec=True) as mock_call:
-        
+    with patch("homeassistant.util.dt.now", return_value=MOCK_NOW):
         assert await hass.config_entries.async_setup(config_entry.entry_id) is True
         await hass.async_block_till_done()
 
-        mock_call.assert_any_call(
-            "notify",
-            "mobile_app_my_iphone",
-            {
-                "title": "Upcoming Amtrak Train 101",
-                "message": "Departing New York Penn Station at 9:15 AM for Philadelphia 30th Street.",
-                "data": {
-                    "subtitle": "15 min delay",
-                    "tag": f"amtrak_tracker_{config_entry.entry_id}",
-                    "persistent": True,
-                    "sticky": True,
-                },
-            }
-        )
+        # Notification should be sent to mobile_app_my_iphone notify service
+        assert len(service_calls["notify"]) == 1
+        assert service_calls["notify"][0].data == {
+            "title": "Upcoming Amtrak Train 101",
+            "message": "Departing New York Penn Station at 9:15 AM for Philadelphia 30th Street.",
+            "data": {
+                "subtitle": "15 min delay",
+                "tag": f"amtrak_tracker_{config_entry.entry_id}",
+                "persistent": True,
+                "sticky": True,
+            },
+        }
 
 
 async def test_notification_dismiss_when_train_departed(hass: HomeAssistant, aioclient_mock) -> None:
     """Test notification is cleared when upcoming train has departed."""
     aioclient_mock.get(STATIONS_URL, json=MOCK_STATIONS)
     aioclient_mock.get(TRAINS_URL, json=MOCK_TRAINS)
+
+    service_calls = setup_mock_services(hass)
 
     config_entry = MockConfigEntry(
         domain=DOMAIN,
@@ -191,14 +212,12 @@ async def test_notification_dismiss_when_train_departed(hass: HomeAssistant, aio
     )
     config_entry.add_to_hass(hass)
 
-    with patch("homeassistant.util.dt.now", return_value=MOCK_NOW), \
-         patch.object(hass.services, "async_call", autospec=True) as mock_call:
-        
+    with patch("homeassistant.util.dt.now", return_value=MOCK_NOW):
         assert await hass.config_entries.async_setup(config_entry.entry_id) is True
         await hass.async_block_till_done()
 
-        # Clear mock calls
-        mock_call.reset_mock()
+        service_calls["persistent_notification_create"].clear()
+        service_calls["persistent_notification_dismiss"].clear()
 
         # Update train status to Departed
         departed_trains = dict(MOCK_TRAINS)
@@ -212,19 +231,18 @@ async def test_notification_dismiss_when_train_departed(hass: HomeAssistant, aio
         await hass.async_block_till_done()
 
         # Notification should be dismissed
-        mock_call.assert_any_call(
-            "persistent_notification",
-            "dismiss",
-            {
-                "notification_id": f"amtrak_tracker_{config_entry.entry_id}",
-            }
-        )
+        assert len(service_calls["persistent_notification_dismiss"]) == 1
+        assert service_calls["persistent_notification_dismiss"][0].data == {
+            "notification_id": f"amtrak_tracker_{config_entry.entry_id}",
+        }
 
 
 async def test_notification_dismiss_when_disabled_or_not_configured_day(hass: HomeAssistant, aioclient_mock) -> None:
     """Test notification is dismissed/not sent when disabled or outside configured schedule days."""
     aioclient_mock.get(STATIONS_URL, json=MOCK_STATIONS)
     aioclient_mock.get(TRAINS_URL, json=MOCK_TRAINS)
+
+    service_calls = setup_mock_services(hass)
 
     # 1. Test not configured day (today is Friday/MOCK_NOW, but config is only Saturday)
     config_entry = MockConfigEntry(
@@ -242,14 +260,12 @@ async def test_notification_dismiss_when_disabled_or_not_configured_day(hass: Ho
     )
     config_entry.add_to_hass(hass)
 
-    with patch("homeassistant.util.dt.now", return_value=MOCK_NOW), \
-         patch.object(hass.services, "async_call", autospec=True) as mock_call:
-        
+    with patch("homeassistant.util.dt.now", return_value=MOCK_NOW):
         assert await hass.config_entries.async_setup(config_entry.entry_id) is True
         await hass.async_block_till_done()
 
         # Verify no create call was made
-        assert not any(call[0][0] == "persistent_notification" and call[0][1] == "create" for call in mock_call.mock_calls)
+        assert len(service_calls["persistent_notification_create"]) == 0
 
         # Unload
         await hass.config_entries.async_unload(config_entry.entry_id)
@@ -271,20 +287,20 @@ async def test_notification_dismiss_when_disabled_or_not_configured_day(hass: Ho
     )
     config_entry_disabled.add_to_hass(hass)
 
-    with patch("homeassistant.util.dt.now", return_value=MOCK_NOW), \
-         patch.object(hass.services, "async_call", autospec=True) as mock_call:
-        
+    with patch("homeassistant.util.dt.now", return_value=MOCK_NOW):
         assert await hass.config_entries.async_setup(config_entry_disabled.entry_id) is True
         await hass.async_block_till_done()
 
         # Verify no create call was made
-        assert not any(call[0][0] == "persistent_notification" and call[0][1] == "create" for call in mock_call.mock_calls)
+        assert len(service_calls["persistent_notification_create"]) == 0
 
 
 async def test_options_flow_and_reload(hass: HomeAssistant, aioclient_mock) -> None:
     """Test options flow updates config options and reloads the integration."""
     aioclient_mock.get(STATIONS_URL, json=MOCK_STATIONS)
     aioclient_mock.get(TRAINS_URL, json=MOCK_TRAINS)
+
+    service_calls = setup_mock_services(hass)
 
     config_entry = MockConfigEntry(
         domain=DOMAIN,
@@ -302,14 +318,12 @@ async def test_options_flow_and_reload(hass: HomeAssistant, aioclient_mock) -> N
     config_entry.add_to_hass(hass)
 
     # Initial setup (notifications disabled)
-    with patch("homeassistant.util.dt.now", return_value=MOCK_NOW), \
-         patch.object(hass.services, "async_call", autospec=True) as mock_call:
-        
+    with patch("homeassistant.util.dt.now", return_value=MOCK_NOW):
         assert await hass.config_entries.async_setup(config_entry.entry_id) is True
         await hass.async_block_till_done()
 
         # Verify no notification created
-        assert not any(call[0][0] == "persistent_notification" and call[0][1] == "create" for call in mock_call.mock_calls)
+        assert len(service_calls["persistent_notification_create"]) == 0
 
         # Trigger options flow to enable notifications
         result = await hass.config_entries.options.async_init(config_entry.entry_id)
