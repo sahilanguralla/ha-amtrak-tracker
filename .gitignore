@@ -7,3 +7,9 @@ __pycache__/
 # Operating System files
 .DS_Store
 Thumbs.db
+
+# Python test and coverage files
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
