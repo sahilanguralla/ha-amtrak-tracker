@@ -195,6 +195,9 @@ async def test_notification_custom_device_service(hass: HomeAssistant, aioclient
             "message": "Departing New York Penn Station for Philadelphia 30th Street (15 min delay)",
             "data": {
                 "tag": f"amtrak_tracker_{config_entry.entry_id}",
+                "subtitle": "15 min delay",
+                "persistent": True,
+                "sticky": True,
                 "live_update": True,
                 "chronometer": True,
                 "when": expected_when,
@@ -253,6 +256,9 @@ async def test_notification_mobile_app_entity_target(hass: HomeAssistant, aiocli
             "message": "Departing New York Penn Station for Philadelphia 30th Street (15 min delay)",
             "data": {
                 "tag": f"amtrak_tracker_{config_entry.entry_id}",
+                "subtitle": "15 min delay",
+                "persistent": True,
+                "sticky": True,
                 "live_update": True,
                 "chronometer": True,
                 "when": expected_when,
