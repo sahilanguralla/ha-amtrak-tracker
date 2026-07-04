@@ -249,20 +249,56 @@ async def async_update_train_notifications(
                 },
             )
         else:
-            await hass.services.async_call(
-                "notify",
-                notify_service,
-                {
-                    "title": f"Upcoming Amtrak Train {train_number}",
-                    "message": message,
-                    "data": {
-                        "subtitle": delay_string,
-                        "tag": f"amtrak_tracker_{entry.entry_id}",
-                        "persistent": True,
-                        "sticky": True,
+            # Calculate Unix timestamp of estimated departure for the chronometer
+            when_timestamp = None
+            if est_dep_str:
+                try:
+                    dt = datetime.fromisoformat(est_dep_str)
+                    when_timestamp = int(dt.timestamp())
+                except (ValueError, TypeError):
+                    pass
+
+            data_payload = {
+                "tag": f"amtrak_tracker_{entry.entry_id}",
+            }
+
+            if notify_service.startswith("mobile_app_"):
+                # Tailor message for Live Activity: static time is replaced by ticking chronometer,
+                # so we display origin/destination and current delay status in the message.
+                live_activity_message = f"Departing {origin_name} for {dest_name} ({delay_string})"
+                data_payload.update({
+                    "live_update": True,
+                })
+                if when_timestamp is not None:
+                    data_payload.update({
+                        "chronometer": True,
+                        "when": when_timestamp,
+                    })
+                
+                await hass.services.async_call(
+                    "notify",
+                    notify_service,
+                    {
+                        "title": f"Upcoming Amtrak Train {train_number}",
+                        "message": live_activity_message,
+                        "data": data_payload,
                     },
-                },
-            )
+                )
+            else:
+                data_payload.update({
+                    "subtitle": delay_string,
+                    "persistent": True,
+                    "sticky": True,
+                })
+                await hass.services.async_call(
+                    "notify",
+                    notify_service,
+                    {
+                        "title": f"Upcoming Amtrak Train {train_number}",
+                        "message": message,
+                        "data": data_payload,
+                    },
+                )
         entry_state["last_notification"] = new_notification_state
     except Exception as err:
         _LOGGER.error("Failed to send train notification: %s", err)
