@@ -9,7 +9,15 @@ from custom_components.amtrak_tracker.notify_targets import (
     get_notify_target_options,
     is_mobile_app_push_target,
     mobile_app_entity_to_service_name,
+    resolve_notify_service_name,
 )
+
+
+class MockMobileAppNotifyService:
+    """Minimal mobile_app notify service state for target resolution tests."""
+
+    def __init__(self, registered_targets: dict[str, str]) -> None:
+        self.registered_targets = registered_targets
 
 
 def setup_mock_notify_services(hass: HomeAssistant) -> list[ServiceCall]:
@@ -83,6 +91,39 @@ async def test_mobile_app_entity_resolves_to_legacy_service(hass: HomeAssistant)
     assert is_mobile_app_push_target(hass, "generic_notify_service") is False
 
 
+async def test_mobile_app_entity_prefers_registered_notify_service(hass: HomeAssistant) -> None:
+    """Test mobile app notify entities use Home Assistant's registered service mapping."""
+    hass.data["mobile_app"] = {
+        "notify": MockMobileAppNotifyService(
+            {
+                "mobile_app_actual_iphone_action": "abc123",
+            }
+        )
+    }
+
+    config_entry = MockConfigEntry(
+        domain="mobile_app",
+        data={
+            "device_name": "Display Name That Does Not Match",
+            "webhook_id": "abc123",
+        },
+    )
+    config_entry.add_to_hass(hass)
+
+    entity_registry = er.async_get(hass)
+    entity_entry = entity_registry.async_get_or_create(
+        "notify",
+        "mobile_app",
+        "device-123",
+        config_entry=config_entry,
+        suggested_object_id="display_name",
+    )
+
+    assert mobile_app_entity_to_service_name(hass, entity_entry) == "mobile_app_actual_iphone_action"
+    assert resolve_notify_service_name(hass, "notify.display_name") == "mobile_app_actual_iphone_action"
+    assert is_mobile_app_push_target(hass, "mobile_app_actual_iphone_action") is True
+
+
 async def test_async_send_notify_via_mobile_app_entity(hass: HomeAssistant) -> None:
     """Test entity-based mobile app targets use the legacy notify service."""
     config_entry = MockConfigEntry(
@@ -130,5 +171,64 @@ async def test_async_send_notify_via_mobile_app_entity(hass: HomeAssistant) -> N
             "live_update": True,
             "chronometer": True,
             "when": 1751546100,
+        },
+    }
+
+
+async def test_async_send_notify_uses_registered_mobile_app_action(hass: HomeAssistant) -> None:
+    """Test entity-based mobile app targets call the actual registered action."""
+    hass.data["mobile_app"] = {
+        "notify": MockMobileAppNotifyService(
+            {
+                "mobile_app_actual_iphone_action": "abc123",
+            }
+        )
+    }
+
+    config_entry = MockConfigEntry(
+        domain="mobile_app",
+        data={
+            "device_name": "Display Name That Does Not Match",
+            "webhook_id": "abc123",
+        },
+    )
+    config_entry.add_to_hass(hass)
+
+    entity_registry = er.async_get(hass)
+    entity_registry.async_get_or_create(
+        "notify",
+        "mobile_app",
+        "device-123",
+        config_entry=config_entry,
+        suggested_object_id="display_name",
+    )
+
+    calls: list[ServiceCall] = []
+
+    @callback
+    def mock_notify(call: ServiceCall) -> None:
+        calls.append(call)
+
+    hass.services.async_register("notify", "mobile_app_actual_iphone_action", mock_notify)
+
+    await async_send_notify(
+        hass,
+        "notify.display_name",
+        title="Upcoming Amtrak Train 101",
+        message="Departing New York for Philadelphia (On time)",
+        data={
+            "tag": "amtrak_tracker_test",
+            "live_update": True,
+        },
+    )
+
+    assert len(calls) == 1
+    assert calls[0].service == "mobile_app_actual_iphone_action"
+    assert calls[0].data == {
+        "title": "Upcoming Amtrak Train 101",
+        "message": "Departing New York for Philadelphia (On time)",
+        "data": {
+            "tag": "amtrak_tracker_test",
+            "live_update": True,
         },
     }
