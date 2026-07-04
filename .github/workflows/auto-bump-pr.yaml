@@ -38,8 +38,15 @@ jobs:
       - name: Bump version
         id: cz_bump
         run: |
-          # Perform the bump on PR branch
-          if cz bump --yes --no-tag; then
+          # Perform the bump on PR branch updating files only
+          if cz bump --yes --version-files-only; then
+            # Get the new version using python to read it from manifest.json
+            NEW_VERSION=$(python3 -c "import json; print(json.load(open('custom_components/amtrak_tracker/manifest.json'))['version'])")
+            
+            # Commit the changed version files
+            git add custom_components/amtrak_tracker/manifest.json pyproject.toml
+            git commit -m "bump: version to $NEW_VERSION"
+            
             echo "bumped=true" >> $GITHUB_OUTPUT
             git push origin HEAD:${{ github.event.pull_request.head.ref }} || echo "Failed to push version bump."
           else
