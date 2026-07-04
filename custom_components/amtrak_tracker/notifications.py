@@ -5,20 +5,23 @@ import logging
 from datetime import datetime
 from typing import Any
 
+import homeassistant.util.dt as dt_util
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-import homeassistant.util.dt as dt_util
 
 from .const import (
-    DOMAIN,
-    CONF_ORIGIN,
-    CONF_DESTINATION,
     CONF_DAYS,
-    CONF_START_TIME,
+    CONF_DESTINATION,
     CONF_END_TIME,
     CONF_NOTIFY_ENABLED,
     CONF_NOTIFY_SERVICE,
+    CONF_ORIGIN,
+    CONF_START_TIME,
+    DOMAIN,
 )
+from .notify_targets import PERSISTENT_NOTIFICATION, async_clear_notify, async_send_notify, is_mobile_app_push_target
+
+
 def calculate_delay_minutes(scheduled_str: str | None, estimated_str: str | None) -> int | None:
     """Calculate the delay in minutes between scheduled and estimated/actual times."""
     if not scheduled_str or not estimated_str:
@@ -63,7 +66,6 @@ def get_upcoming_trains_for_today(
 
     for train_num, train_list in trains_data.items():
         if not isinstance(train_list, list):
-            print(f"DEBUG FILTER: train_list is not list for {train_num}")
             continue
 
         for train in train_list:
@@ -94,23 +96,15 @@ def get_upcoming_trains_for_today(
 
                 # Ensure the train's scheduled departure is today in the station's local time
                 now_station = now.astimezone(sch_dep.tzinfo)
-                print(f"DEBUG TIMEZONE: now={now}, now.tzinfo={now.tzinfo}")
-                print(f"DEBUG TIMEZONE: sch_dep={sch_dep}, sch_dep.tzinfo={sch_dep.tzinfo}")
-                print(f"DEBUG TIMEZONE: now_station={now_station}")
-                print(f"DEBUG TIMEZONE: sch_dep.date()={sch_dep.date()}, now_station.date()={now_station.date()}")
                 if sch_dep.date() != now_station.date():
-                    print("DEBUG TIMEZONE: date mismatch")
                     continue
 
                 # Scheduled departure time must be within configured time window (using station local time)
                 dep_time = sch_dep.time()
-                print(f"DEBUG TIMEZONE: dep_time={dep_time}, start_t={start_t}, end_t={end_t}")
                 if not (start_t <= dep_time <= end_t):
-                    print("DEBUG TIMEZONE: time out of window")
                     continue
 
                 # Train is upcoming only if it has not departed yet
-                print(f"DEBUG TIMEZONE: status={origin_stop.get('status')}")
                 if origin_stop.get("status") == "Departed":
                     continue
 
@@ -206,7 +200,7 @@ async def async_update_train_notifications(
     message = f"Departing {origin_name} at {formatted_time} for {dest_name}."
     subtitle = f"Train {train_number}: {delay_string}"
 
-    notify_service = entry.options.get(CONF_NOTIFY_SERVICE, entry.data.get(CONF_NOTIFY_SERVICE, "persistent_notification"))
+    notify_service = entry.options.get(CONF_NOTIFY_SERVICE, entry.data.get(CONF_NOTIFY_SERVICE, PERSISTENT_NOTIFICATION))
 
     # De-duplicate notifications
     entry_state = hass.data[DOMAIN].setdefault(entry.entry_id, {})
@@ -221,7 +215,7 @@ async def async_update_train_notifications(
 
     # Check if the notification still exists in Home Assistant if using persistent_notification
     notification_exists = True
-    if notify_service == "persistent_notification":
+    if notify_service == PERSISTENT_NOTIFICATION:
         active_notifications = hass.data.get("persistent_notification", {})
         notification_id = f"amtrak_tracker_{entry.entry_id}"
         notification_exists = notification_id in active_notifications
@@ -238,15 +232,13 @@ async def async_update_train_notifications(
     )
 
     try:
-        if notify_service == "persistent_notification":
-            await hass.services.async_call(
-                "persistent_notification",
-                "create",
-                {
-                    "title": title,
-                    "message": message,
-                    "notification_id": f"amtrak_tracker_{entry.entry_id}",
-                },
+        if notify_service == PERSISTENT_NOTIFICATION:
+            await async_send_notify(
+                hass,
+                notify_service,
+                title=title,
+                message=message,
+                data={"notification_id": f"amtrak_tracker_{entry.entry_id}"},
             )
         else:
             # Calculate Unix timestamp of estimated departure for the chronometer
@@ -262,7 +254,7 @@ async def async_update_train_notifications(
                 "tag": f"amtrak_tracker_{entry.entry_id}",
             }
 
-            if "iphone" in notify_service:
+            if is_mobile_app_push_target(hass, notify_service):
                 # Tailor message for Live Activity: static time is replaced by ticking chronometer,
                 # so we display origin/destination and current delay status in the message.
                 live_activity_message = f"Departing {origin_name} for {dest_name} ({delay_string})"
@@ -274,15 +266,13 @@ async def async_update_train_notifications(
                         "chronometer": True,
                         "when": when_timestamp,
                     })
-                
-                await hass.services.async_call(
-                    "notify",
+
+                await async_send_notify(
+                    hass,
                     notify_service,
-                    {
-                        "title": f"Upcoming Amtrak Train {train_number}",
-                        "message": live_activity_message,
-                        "data": data_payload,
-                    },
+                    title=f"Upcoming Amtrak Train {train_number}",
+                    message=live_activity_message,
+                    data=data_payload,
                 )
             else:
                 data_payload.update({
@@ -290,14 +280,12 @@ async def async_update_train_notifications(
                     "persistent": True,
                     "sticky": True,
                 })
-                await hass.services.async_call(
-                    "notify",
+                await async_send_notify(
+                    hass,
                     notify_service,
-                    {
-                        "title": f"Upcoming Amtrak Train {train_number}",
-                        "message": message,
-                        "data": data_payload,
-                    },
+                    title=f"Upcoming Amtrak Train {train_number}",
+                    message=message,
+                    data=data_payload,
                 )
         entry_state["last_notification"] = new_notification_state
     except Exception as err:
@@ -318,24 +306,18 @@ async def async_dismiss_notifications(hass: HomeAssistant, entry: ConfigEntry) -
     _LOGGER.info("Dismissing train notification via %s", notify_service)
 
     try:
-        if notify_service == "persistent_notification":
-            await hass.services.async_call(
-                "persistent_notification",
-                "dismiss",
-                {
-                    "notification_id": f"amtrak_tracker_{entry.entry_id}",
-                },
+        if notify_service == PERSISTENT_NOTIFICATION:
+            await async_clear_notify(
+                hass,
+                notify_service,
+                tag=f"amtrak_tracker_{entry.entry_id}",
+                notification_id=f"amtrak_tracker_{entry.entry_id}",
             )
         else:
-            await hass.services.async_call(
-                "notify",
+            await async_clear_notify(
+                hass,
                 notify_service,
-                {
-                    "message": "clear_notification",
-                    "data": {
-                        "tag": f"amtrak_tracker_{entry.entry_id}",
-                    },
-                },
+                tag=f"amtrak_tracker_{entry.entry_id}",
             )
     except Exception as err:
         _LOGGER.error("Failed to clear train notification: %s", err)

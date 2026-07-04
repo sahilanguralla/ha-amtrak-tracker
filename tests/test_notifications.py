@@ -2,23 +2,21 @@
 
 from datetime import datetime
 from unittest.mock import patch
-import pytest
 
-from homeassistant.core import HomeAssistant, callback, ServiceCall
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 import homeassistant.util.dt as dt_util
+import pytest
+from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.helpers import entity_registry as er
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.amtrak_tracker.const import (
+    CONF_NOTIFY_ENABLED,
+    CONF_NOTIFY_SERVICE,
     DOMAIN,
     STATIONS_URL,
     TRAINS_URL,
-    CONF_NOTIFY_ENABLED,
-    CONF_NOTIFY_SERVICE,
 )
-from custom_components.amtrak_tracker.notifications import (
-    async_update_train_notifications,
-    async_dismiss_notifications,
-)
+from custom_components.amtrak_tracker.notifications import async_dismiss_notifications, async_update_train_notifications
 
 MOCK_STATIONS = {
     "NYP": {"name": "New York Penn Station"},
@@ -192,6 +190,64 @@ async def test_notification_custom_device_service(hass: HomeAssistant, aioclient
         # Notification should be sent to mobile_app_my_iphone notify service
         assert len(service_calls["notify"]) == 1
         expected_when = int(datetime.fromisoformat("2026-07-03T09:15:00-04:00").timestamp())
+        assert service_calls["notify"][0].data == {
+            "title": "Upcoming Amtrak Train 101",
+            "message": "Departing New York Penn Station for Philadelphia 30th Street (15 min delay)",
+            "data": {
+                "tag": f"amtrak_tracker_{config_entry.entry_id}",
+                "live_update": True,
+                "chronometer": True,
+                "when": expected_when,
+            },
+        }
+
+
+async def test_notification_mobile_app_entity_target(hass: HomeAssistant, aioclient_mock) -> None:
+    """Test notification is sent via legacy service when a notify entity is selected."""
+    aioclient_mock.get(STATIONS_URL, json=MOCK_STATIONS)
+    aioclient_mock.get(TRAINS_URL, json=MOCK_TRAINS)
+
+    service_calls = setup_mock_services(hass)
+
+    mobile_app_entry = MockConfigEntry(
+        domain="mobile_app",
+        data={
+            "device_name": "My iPhone",
+            "webhook_id": "abc123",
+        },
+    )
+    mobile_app_entry.add_to_hass(hass)
+    entity_registry = er.async_get(hass)
+    entity_registry.async_get_or_create(
+        "notify",
+        "mobile_app",
+        "device-123",
+        config_entry=mobile_app_entry,
+        suggested_object_id="my_iphone",
+    )
+
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="NYP to PHL Tracker",
+        data={
+            "origin": "NYP",
+            "destination": "PHL",
+            "days": ["friday"],
+            "start_time": "08:00",
+            "end_time": "17:00",
+            CONF_NOTIFY_ENABLED: True,
+            CONF_NOTIFY_SERVICE: "notify.my_iphone",
+        },
+    )
+    config_entry.add_to_hass(hass)
+
+    with patch("homeassistant.util.dt.now", return_value=MOCK_NOW):
+        assert await hass.config_entries.async_setup(config_entry.entry_id) is True
+        await hass.async_block_till_done()
+
+        assert len(service_calls["notify"]) == 1
+        expected_when = int(datetime.fromisoformat("2026-07-03T09:15:00-04:00").timestamp())
+        assert service_calls["notify"][0].service == "mobile_app_my_iphone"
         assert service_calls["notify"][0].data == {
             "title": "Upcoming Amtrak Train 101",
             "message": "Departing New York Penn Station for Philadelphia 30th Street (15 min delay)",
