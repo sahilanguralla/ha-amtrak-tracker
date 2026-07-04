@@ -191,6 +191,53 @@ async def test_notification_custom_device_service(hass: HomeAssistant, aioclient
 
         # Notification should be sent to mobile_app_my_iphone notify service
         assert len(service_calls["notify"]) == 1
+        expected_when = int(datetime.fromisoformat("2026-07-03T09:15:00-04:00").timestamp())
+        assert service_calls["notify"][0].data == {
+            "title": "Upcoming Amtrak Train 101",
+            "message": "Departing New York Penn Station for Philadelphia 30th Street (15 min delay)",
+            "data": {
+                "tag": f"amtrak_tracker_{config_entry.entry_id}",
+                "live_update": True,
+                "chronometer": True,
+                "when": expected_when,
+            },
+        }
+
+
+async def test_notification_non_mobile_app_fallback_service(hass: HomeAssistant, aioclient_mock) -> None:
+    """Test notification is sent with standard payload for non-mobile-app custom service."""
+    aioclient_mock.get(STATIONS_URL, json=MOCK_STATIONS)
+    aioclient_mock.get(TRAINS_URL, json=MOCK_TRAINS)
+
+    service_calls = setup_mock_services(hass)
+
+    @callback
+    def mock_fallback_notify(call: ServiceCall) -> None:
+        service_calls["notify"].append(call)
+
+    hass.services.async_register("notify", "generic_notify_service", mock_fallback_notify)
+
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="NYP to PHL Tracker",
+        data={
+            "origin": "NYP",
+            "destination": "PHL",
+            "days": ["friday"],
+            "start_time": "08:00",
+            "end_time": "17:00",
+            CONF_NOTIFY_ENABLED: True,
+            CONF_NOTIFY_SERVICE: "generic_notify_service",
+        },
+    )
+    config_entry.add_to_hass(hass)
+
+    with patch("homeassistant.util.dt.now", return_value=MOCK_NOW):
+        assert await hass.config_entries.async_setup(config_entry.entry_id) is True
+        await hass.async_block_till_done()
+
+        # Notification should be sent to generic_notify_service notify service with standard data
+        assert len(service_calls["notify"]) == 1
         assert service_calls["notify"][0].data == {
             "title": "Upcoming Amtrak Train 101",
             "message": "Departing New York Penn Station at 9:15 AM for Philadelphia 30th Street.",
