@@ -8,7 +8,7 @@ from datetime import datetime
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -19,6 +19,8 @@ from .const import (
     CONF_DAYS,
     CONF_START_TIME,
     CONF_END_TIME,
+    CONF_NOTIFY_ENABLED,
+    CONF_NOTIFY_SERVICE,
     STATIONS_URL,
 )
 
@@ -104,6 +106,14 @@ class AmtrakTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.warning("Could not fetch stations list for configuration: %s", err)
         return {}
 
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> AmtrakTrackerOptionsFlowHandler:
+        """Get the options flow for this handler."""
+        return AmtrakTrackerOptionsFlowHandler(config_entry)
+
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
@@ -128,6 +138,8 @@ class AmtrakTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_DAYS: user_input[CONF_DAYS],
                         CONF_START_TIME: user_input[CONF_START_TIME],
                         CONF_END_TIME: user_input[CONF_END_TIME],
+                        CONF_NOTIFY_ENABLED: user_input.get(CONF_NOTIFY_ENABLED, False),
+                        CONF_NOTIFY_SERVICE: user_input.get(CONF_NOTIFY_SERVICE, "persistent_notification"),
                     },
                 )
 
@@ -155,6 +167,15 @@ class AmtrakTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Fallback to simple text inputs if Amtraker API is offline/unavailable
             origin_selector = selector.TextSelector()
             dest_selector = selector.TextSelector()
+
+        notify_services = sorted(self.hass.services.async_services().get("notify", {}).keys())
+        notify_options = [
+            {"value": "persistent_notification", "label": "Persistent Notification (built-in)"}
+        ] + [
+            {"value": svc, "label": f"Notify service: {svc}"}
+            for svc in notify_services
+            if svc != "persistent_notification"
+        ]
 
         schema = vol.Schema(
             {
@@ -186,10 +207,101 @@ class AmtrakTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Required(CONF_START_TIME, default="08:00"): str,
                 vol.Required(CONF_END_TIME, default="17:00"): str,
+                vol.Optional(CONF_NOTIFY_ENABLED, default=False): bool,
+                vol.Optional(
+                    CONF_NOTIFY_SERVICE, default="persistent_notification"
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=notify_options,
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                    )
+                ),
             }
         )
 
         return self.async_show_form(
             step_id="user", data_schema=schema, errors=errors
         )
+
+
+class AmtrakTrackerOptionsFlowHandler(config_entries.OptionsFlow):
+    """Handle options flow for Amtrak Tracker."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        """Initialize options flow."""
+        self.config_entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Manage the options."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        # Get current values to set as defaults
+        notify_enabled = self.config_entry.options.get(
+            CONF_NOTIFY_ENABLED,
+            self.config_entry.data.get(CONF_NOTIFY_ENABLED, False)
+        )
+        notify_service = self.config_entry.options.get(
+            CONF_NOTIFY_SERVICE,
+            self.config_entry.data.get(CONF_NOTIFY_SERVICE, "persistent_notification")
+        )
+        days = self.config_entry.options.get(
+            CONF_DAYS,
+            self.config_entry.data.get(CONF_DAYS, ["monday", "tuesday", "wednesday", "thursday", "friday"])
+        )
+        start_time = self.config_entry.options.get(
+            CONF_START_TIME,
+            self.config_entry.data.get(CONF_START_TIME, "08:00")
+        )
+        end_time = self.config_entry.options.get(
+            CONF_END_TIME,
+            self.config_entry.data.get(CONF_END_TIME, "17:00")
+        )
+
+        notify_services = sorted(self.hass.services.async_services().get("notify", {}).keys())
+        notify_options = [
+            {"value": "persistent_notification", "label": "Persistent Notification (built-in)"}
+        ] + [
+            {"value": svc, "label": f"Notify service: {svc}"}
+            for svc in notify_services
+            if svc != "persistent_notification"
+        ]
+
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_DAYS, default=days): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[
+                            {"value": "monday", "label": "Monday"},
+                            {"value": "tuesday", "label": "Tuesday"},
+                            {"value": "wednesday", "label": "Wednesday"},
+                            {"value": "thursday", "label": "Thursday"},
+                            {"value": "friday", "label": "Friday"},
+                            {"value": "saturday", "label": "Saturday"},
+                            {"value": "sunday", "label": "Sunday"},
+                        ],
+                        mode=selector.SelectSelectorMode.LIST,
+                        multiple=True,
+                    )
+                ),
+                vol.Required(CONF_START_TIME, default=start_time): str,
+                vol.Required(CONF_END_TIME, default=end_time): str,
+                vol.Optional(CONF_NOTIFY_ENABLED, default=notify_enabled): bool,
+                vol.Optional(
+                    CONF_NOTIFY_SERVICE, default=notify_service
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=notify_options,
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                    )
+                ),
+            }
+        )
+
+        return self.async_show_form(
+            step_id="init", data_schema=schema
+        )
+
 

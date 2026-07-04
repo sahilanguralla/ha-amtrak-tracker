@@ -9,7 +9,9 @@
           "destination": "Destination Station Code (e.g., PHL)",
           "days": "Days of the week to track",
           "start_time": "Start of departure time window (HH:MM)",
-          "end_time": "End of departure time window (HH:MM)"
+          "end_time": "End of departure time window (HH:MM)",
+          "notify_enabled": "Enable upcoming train notification",
+          "notify_service": "Notification destination"
         }
       }
     },
@@ -21,6 +23,18 @@
       "invalid_time_range": "End time must be after start time.",
       "cannot_connect": "Failed to connect to Amtraker API. Please verify internet connection.",
       "unknown": "Unexpected error occurred."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure Amtrak Tracker",
+        "description": "Configure notification and tracking settings for this Amtrak commute.",
+        "data": {
+          "notify_enabled": "Enable upcoming train notification",
+          "notify_service": "Notification destination"
+        }
+      }
     }
   }
 }

@@ -68,6 +68,8 @@ async def test_flow_success(hass: HomeAssistant, aioclient_mock) -> None:
         CONF_DAYS: ["monday", "friday"],
         CONF_START_TIME: "08:00",
         CONF_END_TIME: "17:00",
+        "notify_enabled": False,
+        "notify_service": "persistent_notification",
     }
     assert len(mock_setup_entry.mock_calls) == 1
 

@@ -8,7 +8,7 @@ import aiohttp
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -17,6 +17,10 @@ from .const import (
     DEFAULT_UPDATE_INTERVAL_SECONDS,
     TRAINS_URL,
     STATIONS_URL,
+)
+from .notifications import (
+    async_update_train_notifications,
+    async_dismiss_notifications,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -54,6 +58,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Perform the first refresh to ensure data is populated
         await coordinator.async_config_entry_first_refresh()
         hass.data[DOMAIN]["coordinator"] = coordinator
+    else:
+        coordinator = hass.data[DOMAIN]["coordinator"]
+
+    # Initialize last_notification cache for this entry
+    hass.data[DOMAIN].setdefault(entry.entry_id, {})
+
+    # Register an update listener for options
+    entry.async_on_unload(entry.add_update_listener(update_listener))
+
+    # Register listener on coordinator to update notifications
+    @callback
+    def async_on_coordinator_update() -> None:
+        hass.async_create_task(async_update_train_notifications(hass, entry, coordinator))
+
+    entry.async_on_unload(coordinator.async_add_listener(async_on_coordinator_update))
+
+    # Perform initial notification update
+    await async_update_train_notifications(hass, entry, coordinator)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -62,6 +84,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    # Dismiss any active notifications when unloading
+    await async_dismiss_notifications(hass, entry)
+
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     
     # If this was the last entry, we can clean up the coordinator and station cache
@@ -72,8 +97,16 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # so we check if count is <= 1
         if len(current_entries) <= 1:
             hass.data.pop(DOMAIN, None)
+        else:
+            # Just pop this entry's notification cache
+            hass.data[DOMAIN].pop(entry.entry_id, None)
 
     return unload_ok
+
+
+async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Handle options update."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 class AmtrakDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):

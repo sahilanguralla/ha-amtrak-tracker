@@ -60,4 +60,16 @@ Example:
 - **Branching Strategy**: Always develop, modify, or test code in a dedicated feature branch. Do not push changes directly to the `main` branch.
 - **PR Integration**: Pull requests must be squash-merged into the `main` branch to enforce a clean, linear history (enforced via branch protection rules). Head branches are configured to be automatically deleted upon merge.
 - **PR Titles**: Since the repository is configured to use the Pull Request title as the squash commit message, the PR title must follow the **Conventional Commits** specification (e.g., `feat(sensor): add train station schedule tracking`).
+- **PR Body**: The pull request body must follow a structured format with `### Summary` and `### Details` (covering **Problem**, **Solution**, and **Testing**).
+  Example format:
+  ```markdown
+  ### Summary
+  [Brief description of what the PR accomplishes and high-level context]
+
+  ### Details
+  - **Problem:** [Describe the issue, bug, or why the feature is needed]
+  - **Solution:** [Explain the implementation details and how the code is changed to resolve the problem]
+  - **Testing:** [Detail the automated and manual verification done, ensuring unit tests pass]
+  ```
 - **Required Checks**: Ensure all status checks (e.g., tests, linting, validation) pass before merging.
+
