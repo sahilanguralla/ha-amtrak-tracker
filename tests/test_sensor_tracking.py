@@ -109,37 +109,41 @@ async def test_sensors_setup_and_update(hass: HomeAssistant, aioclient_mock) -> 
     
     # We expect 3 departure sensors and 3 schedule sensors
     expected_entities = [
-        "sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1st_upcoming_train",
-        "sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1st_train_current_schedule",
-        "sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_2nd_upcoming_train",
-        "sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_2nd_train_current_schedule",
-        "sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_3rd_upcoming_train",
-        "sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_3rd_train_current_schedule",
+        "sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1_train_time",
+        "sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1_train_delay",
+        "sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_2_train_time",
+        "sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_2_train_delay",
+        "sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_3_train_time",
+        "sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_3_train_delay",
     ]
     for entity_id in expected_entities:
         assert ent_reg.async_get(entity_id) is not None
 
     # Check 1st upcoming train state (Train 101 departure NYP is 09:05 AM)
-    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1st_upcoming_train")
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1_train_time")
     assert state is not None
     assert state.state == "9:05 AM"
+    assert state.name == "New York Penn Station to Philadelphia 30th Street Amtrak Tracker #1 Train 101 Time"
     assert state.attributes["train_number"] == "101"
     assert state.attributes["upcoming_trains_count"] == 2
 
     # Check 1st schedule delay state (5 mins delay)
-    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1st_train_current_schedule")
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1_train_delay")
     assert state is not None
     assert state.state == "5"
+    assert state.name == "New York Penn Station to Philadelphia 30th Street Amtrak Tracker #1 Train 101 Delay"
 
     # Check 2nd upcoming train state (Train 103 departure NYP is 12:00 PM)
-    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_2nd_upcoming_train")
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_2_train_time")
     assert state is not None
     assert state.state == "12:00 PM"
+    assert state.name == "New York Penn Station to Philadelphia 30th Street Amtrak Tracker #2 Train 103 Time"
 
     # Check 3rd upcoming train (should be None/unknown since only 2 trains match)
-    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_3rd_upcoming_train")
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_3_train_time")
     assert state is not None
     assert state.state == "unknown"  # Home Assistant represents None native value as "unknown" state
+    assert state.name == "New York Penn Station to Philadelphia 30th Street Amtrak Tracker #3 Train Time"
 
     # Trigger a coordinator update to simulate Train 101 departing NYP (origin)
     updated_trains = dict(MOCK_TRAINS)
@@ -155,15 +159,17 @@ async def test_sensors_setup_and_update(hass: HomeAssistant, aioclient_mock) -> 
     await hass.async_block_till_done()
 
     # Now Train 103 should be the 1st upcoming train
-    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1st_upcoming_train")
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1_train_time")
     assert state is not None
     assert state.state == "12:00 PM"
+    assert state.name == "New York Penn Station to Philadelphia 30th Street Amtrak Tracker #1 Train 103 Time"
     assert state.attributes["train_number"] == "103"
 
     # And the 2nd upcoming train should be unknown/None
-    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_2nd_upcoming_train")
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_2_train_time")
     assert state is not None
     assert state.state == "unknown"
+    assert state.name == "New York Penn Station to Philadelphia 30th Street Amtrak Tracker #2 Train Time"
 
 
 async def test_sensor_edge_cases(hass: HomeAssistant, aioclient_mock) -> None:
@@ -232,7 +238,7 @@ async def test_sensor_edge_cases(hass: HomeAssistant, aioclient_mock) -> None:
     await hass.async_block_till_done()
 
     # None of the weird trains should match and become upcoming
-    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1st_upcoming_train")
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1_train_time")
     assert state is not None
     assert state.state == "unknown"
 
@@ -384,19 +390,22 @@ async def test_sensor_sorting_by_estimated_departure(hass: HomeAssistant, aiocli
     await hass.async_block_till_done()
 
     # 1st upcoming train should be Train 102 (est departure 11:05 AM)
-    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1st_upcoming_train")
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1_train_time")
     assert state is not None
     assert state.state == "11:05 AM"
+    assert state.name == "New York Penn Station to Philadelphia 30th Street Amtrak Tracker #1 Train 102 Time"
     assert state.attributes["train_number"] == "102"
 
     # 2nd upcoming train should be Train 103 (est departure 12:00 PM)
-    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_2nd_upcoming_train")
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_2_train_time")
     assert state is not None
     assert state.state == "12:00 PM"
+    assert state.name == "New York Penn Station to Philadelphia 30th Street Amtrak Tracker #2 Train 103 Time"
     assert state.attributes["train_number"] == "103"
 
     # 3rd upcoming train should be Train 101 (est departure 1:00 PM, even though scheduled 10:00 AM)
-    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_3rd_upcoming_train")
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_3_train_time")
     assert state is not None
     assert state.state == "1:00 PM"
+    assert state.name == "New York Penn Station to Philadelphia 30th Street Amtrak Tracker #3 Train 101 Time"
     assert state.attributes["train_number"] == "101"
