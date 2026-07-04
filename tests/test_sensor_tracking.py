@@ -282,3 +282,121 @@ async def test_device_info_property(hass: HomeAssistant) -> None:
     
     assert device_info["name"] == "New York to Philadelphia Amtrak Tracker"
     assert device_info["manufacturer"] == "Amtrak"
+
+
+async def test_sensor_sorting_by_estimated_departure(hass: HomeAssistant, aioclient_mock) -> None:
+    """Test that upcoming trains are sorted by their estimated departure time, not scheduled departure time."""
+    delayed_trains = {
+        "101": [
+            {
+                "trainNum": "101",
+                "routeName": "Keystone",
+                "trainID": "101-1",
+                "trainState": "Active",
+                "lat": 40.0,
+                "lon": -74.0,
+                "velocity": 80.0,
+                "stations": [
+                    {
+                        "code": "NYP",
+                        "schDep": "2026-07-03T10:00:00-04:00",
+                        "dep": "2026-07-03T13:00:00-04:00",  # Delayed to 1:00 PM
+                        "status": "Enroute",
+                    },
+                    {
+                        "code": "PHL",
+                        "schArr": "2026-07-03T11:30:00-04:00",
+                        "arr": "2026-07-03T14:30:00-04:00",
+                        "status": "Enroute",
+                    }
+                ]
+            }
+        ],
+        "102": [
+            {
+                "trainNum": "102",
+                "routeName": "Keystone",
+                "trainID": "102-1",
+                "trainState": "Active",
+                "lat": 40.0,
+                "lon": -74.0,
+                "velocity": 80.0,
+                "stations": [
+                    {
+                        "code": "NYP",
+                        "schDep": "2026-07-03T11:00:00-04:00",
+                        "dep": "2026-07-03T11:05:00-04:00",  # Est departure 11:05 AM
+                        "status": "Enroute",
+                    },
+                    {
+                        "code": "PHL",
+                        "schArr": "2026-07-03T12:30:00-04:00",
+                        "arr": "2026-07-03T12:35:00-04:00",
+                        "status": "Enroute",
+                    }
+                ]
+            }
+        ],
+        "103": [
+            {
+                "trainNum": "103",
+                "routeName": "Keystone",
+                "trainID": "103-1",
+                "trainState": "Active",
+                "lat": 40.0,
+                "lon": -74.0,
+                "velocity": 80.0,
+                "stations": [
+                    {
+                        "code": "NYP",
+                        "schDep": "2026-07-03T12:00:00-04:00",
+                        "dep": "2026-07-03T12:00:00-04:00",  # Est departure 12:00 PM
+                        "status": "Enroute",
+                    },
+                    {
+                        "code": "PHL",
+                        "schArr": "2026-07-03T13:30:00-04:00",
+                        "arr": "2026-07-03T13:30:00-04:00",
+                        "status": "Enroute",
+                    }
+                ]
+            }
+        ]
+    }
+
+    aioclient_mock.get(STATIONS_URL, json=MOCK_STATIONS)
+    aioclient_mock.get(TRAINS_URL, json=delayed_trains)
+
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="NYP to PHL Tracker",
+        data={
+            "origin": "NYP",
+            "destination": "PHL",
+            "days": ["friday"],
+            "start_time": "08:00",
+            "end_time": "17:00",
+        },
+    )
+    config_entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(config_entry.entry_id) is True
+    await hass.async_block_till_done()
+
+    # 1st upcoming train should be Train 102 (est departure 11:05 AM)
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1st_upcoming_train")
+    assert state is not None
+    assert state.state == "11:05 AM"
+    assert state.attributes["train_number"] == "102"
+
+    # 2nd upcoming train should be Train 103 (est departure 12:00 PM)
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_2nd_upcoming_train")
+    assert state is not None
+    assert state.state == "12:00 PM"
+    assert state.attributes["train_number"] == "103"
+
+    # 3rd upcoming train should be Train 101 (est departure 1:00 PM, even though scheduled 10:00 AM)
+    state = hass.states.get("sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_3rd_upcoming_train")
+    assert state is not None
+    assert state.state == "1:00 PM"
+    assert state.attributes["train_number"] == "101"
