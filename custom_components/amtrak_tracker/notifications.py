@@ -219,8 +219,15 @@ async def async_update_train_notifications(
         "subtitle": subtitle,
     }
 
-    if last_notification == new_notification_state:
-        _LOGGER.debug("Notification content unchanged; skipping update")
+    # Check if the notification still exists in Home Assistant if using persistent_notification
+    notification_exists = True
+    if notify_service == "persistent_notification":
+        active_notifications = hass.data.get("persistent_notification", {})
+        notification_id = f"amtrak_tracker_{entry.entry_id}"
+        notification_exists = notification_id in active_notifications
+
+    if last_notification == new_notification_state and notification_exists:
+        _LOGGER.debug("Notification content unchanged and still active; skipping update")
         return
 
     _LOGGER.info(
