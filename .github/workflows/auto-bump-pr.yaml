@@ -2,7 +2,7 @@ name: Auto Bump Version
 
 on:
   pull_request:
-    types: [closed]
+    types: [opened, synchronize, labeled, reopened]
     branches: [main]
 
   workflow_dispatch:
@@ -10,18 +10,20 @@ on:
 jobs:
   bump-version:
     name: Bump version and create changelog with commitizen
-    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
+    if: contains(github.event.pull_request.labels.*.name, 'release')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -36,10 +38,10 @@ jobs:
       - name: Bump version
         id: cz_bump
         run: |
-          # Perform the bump on main
-          if cz bump --yes; then
+          # Perform the bump on PR branch
+          if cz bump --yes --no-tag; then
             echo "bumped=true" >> $GITHUB_OUTPUT
-            git push origin main --tags
+            git push origin HEAD:${{ github.event.pull_request.head.ref }} || echo "Failed to push version bump."
           else
             echo "bumped=false" >> $GITHUB_OUTPUT
           fi
