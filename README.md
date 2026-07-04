@@ -1,5 +1,9 @@
 # Amtrak Tracker for Home Assistant
 
+<p align="center">
+  <img src="logo.svg" alt="Amtrak Tracker Logo" width="200" height="200">
+</p>
+
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 
 A Home Assistant custom integration that tracks Amtrak trains between an origin station and a destination station on specific days and time ranges using the unofficial community-maintained [Amtraker API](https://amtraker.com).
