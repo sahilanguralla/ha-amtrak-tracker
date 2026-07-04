@@ -210,15 +210,15 @@ class AmtrakTrainSensor(CoordinatorEntity[AmtrakDataUpdateCoordinator], SensorEn
                     if origin_stop.get("status") != "Departed":
                         upcoming_trains.append(train_info)
 
-        # Sort lists by scheduled departure time
-        def get_sch_dep(t):
+        # Sort lists by estimated departure time
+        def get_est_dep(t):
             try:
-                return datetime.fromisoformat(t["scheduled_departure"])
-            except ValueError:
+                return datetime.fromisoformat(t["estimated_departure"])
+            except (ValueError, TypeError):
                 return datetime.min
 
-        matched_trains.sort(key=get_sch_dep)
-        upcoming_trains.sort(key=get_sch_dep)
+        matched_trains.sort(key=get_est_dep)
+        upcoming_trains.sort(key=get_est_dep)
 
         # Build sensor attributes
         attrs: dict[str, Any] = {
