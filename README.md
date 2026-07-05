@@ -12,8 +12,10 @@ A Home Assistant custom integration that tracks Amtrak trains between an origin 
 - **Searchable Station Dropdowns:** Select origin and destination stations easily from the configuration UI.
 - **Dynamic Scheduling:** Filter tracks by specific days of the week (e.g. only Monday and Wednesday) and a scheduled departure window (e.g. 08:00 to 12:00).
 - **Timezone Awareness:** Calculates weekdays and time offsets relative to the origin station's local timezone.
+- **Multi-Train Tracking:** Tracks up to 3 upcoming trains simultaneously for each configured route, creating both Train Time and Train Delay sensors for each.
+- **Built-in Notifications & Live Activities:** Automatically sends push notifications for upcoming trains, supporting Home Assistant persistent notifications and mobile app push notifications with native iOS/Android Live Activity (chronometer) updates.
 - **Estimated and Scheduled Delays:** Computes real-time delays at both departure (origin) and arrival (destination) stations in minutes.
-- **Entity Attributes:** Exposes detailed train attributes including name, number, current coordinates, speed, status, and a full list of all matching runs for the day.
+- **Entity Attributes:** Exposes detailed train attributes including name, number, current coordinates, speed, and status.
 - **Optimized Network Fetching:** Shares a single consolidated endpoint poll (`https://api.amtraker.com/v3/trains`) across all configured sensors via a `DataUpdateCoordinator` to respect API rate limits.
 
 ---
@@ -46,19 +48,28 @@ A Home Assistant custom integration that tracks Amtrak trains between an origin 
    - **Days of the week:** Check the days you want to track.
    - **Start time:** The start of the scheduled departure time range (HH:MM, local time at origin).
    - **End time:** The end of the scheduled departure time range (HH:MM, local time at origin).
+   - **Enable Notifications:** Check to enable automated upcoming train notifications.
+   - **Notification Service:** Choose the target service/entity (e.g. `persistent_notification` or a mobile device app notify entity).
+   - **Enable Live Activity:** Enable to send persistent, sticky updates with a ticking chronometer. When disabled, sends regular high-priority time-sensitive notifications.
 5. Click **Submit**.
+
+> [!NOTE]
+> All settings (including days of the week, times, and notification settings) can be updated at any time by clicking **Configure** on the integration card under **Settings -> Devices & Services**.
 
 ---
 
 ## Sensor State & Attributes
 
-Each configured tracker creates a sensor entity (e.g. `sensor.nyp_to_phl_tracker`).
+Each configured tracker creates 6 sensor entities (3 Train Time sensors and 3 Train Delay sensors) to track up to 3 upcoming trains:
 
-### State
-The main state of the departure sensor is the **estimated departure time** of the next upcoming train in the configured window (formatted as a local 12-hour time string, e.g. `4:32 PM`). If no trains match or all matching trains have already departed, the state will show as `Unknown` / `None`.
+- **Train Time Sensors (`#1 Train Time`, `#2 Train Time`, `#3 Train Time`):**
+  - **State:** The estimated departure time of the train (e.g. `9:05 AM`). If no train matches, the state will be `unknown`.
+- **Train Delay Sensors (`#1 Train Delay`, `#2 Train Delay`, `#3 Train Delay`):**
+  - **State:** The departure delay in minutes (e.g. `15`). If no train matches, the state will be `unknown`.
+  - **Unit of Measurement:** `min`
 
 ### Attributes
-The sensor exposes the following attributes for the next upcoming train:
+Both types of sensors expose the following attributes for their respective scheduled/upcoming train:
 
 | Attribute | Description |
 | :--- | :--- |
@@ -68,6 +79,7 @@ The sensor exposes the following attributes for the next upcoming train:
 | `destination_name` | Full name of destination station. |
 | `train_number` | Active train number (e.g. `19`). |
 | `route_name` | Route/Train name (e.g., `Crescent`). |
+| `train_id` | Unofficial API train ID (e.g., `19-1`). |
 | `train_state` | State of the train (e.g., `Active`, `Predeparture`, `Completed`). |
 | `departure_status` | Status at origin (e.g., `Enroute`, `Station`, `Departed`). |
 | `scheduled_departure` | Scheduled departure timestamp. |
@@ -81,32 +93,44 @@ The sensor exposes the following attributes for the next upcoming train:
 | `train_speed_mph` | Current speed of the train in miles per hour. |
 | `matched_trains_count` | Total matching runs scheduled for the configured day. |
 | `upcoming_trains_count` | Count of matching runs that have not yet departed. |
-| `matched_trains` | A list of all matching trains for the day (both departed and upcoming) for template iteration. |
-| `upcoming_trains` | A list of all upcoming trains for the duration that have not yet departed. |
+
+---
+
+## Built-in Notifications & Live Activities
+
+The integration includes a built-in notification manager that automatically sends notifications when upcoming trains have updates, delays, or schedule changes.
+
+### Configuration
+- **Enable Notifications:** Toggles the notification system. If enabled, the integration tracks the next upcoming train and sends alerts.
+- **Notification Target:** Choose where notifications are sent. Options include:
+  - `Persistent Notification` (built-in Home Assistant notifications).
+  - Any registered `notify` platform entity or legacy service (e.g., `notify.mobile_app_your_iphone`).
+- **Enable Live Activity:** When sending to a mobile device app (e.g. Companion App):
+  - **Enabled (Live Activity):** Delivers a persistent, sticky notification featuring a ticking chronometer (using the train's estimated departure timestamp) and real-time status updates (delays, arrival status).
+  - **Disabled (High Priority):** Sends regular, time-sensitive high-priority push notifications to the device.
 
 ---
 
 ## Example Automation
 
-This automation sends a notification to your mobile app if your tracked train departs from the origin station with a delay of more than 10 minutes.
+While the integration has built-in notifications, you can also build custom Home Assistant automations using the sensors. This automation sends a notification to your mobile app if the next upcoming train (#1) is delayed by more than 10 minutes.
 
 ```yaml
 alias: "Notify on Amtrak Train Delay"
 trigger:
   - platform: numeric_state
-    entity_id: sensor.nyp_to_phl_tracker
-    attribute: delay_departure_minutes
+    entity_id: sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1_train_delay
     above: 10
 condition:
   # Ensure there is an active train selected
   - condition: template
-    value_template: "{{ state_attr('sensor.nyp_to_phl_tracker', 'train_number') != None }}"
+    value_template: "{{ state_attr('sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1_train_delay', 'train_number') != None }}"
 action:
   - service: notify.mobile_app_your_phone
     data:
       title: "Amtrak Train Delayed"
       message: >
-        Amtrak {{ state_attr('sensor.nyp_to_phl_tracker', 'route_name') }} (Train {{ state_attr('sensor.nyp_to_phl_tracker', 'train_number') }}) is departing {{ state_attr('sensor.nyp_to_phl_tracker', 'origin_name') }} delayed by {{ state_attr('sensor.nyp_to_phl_tracker', 'delay_departure_minutes') }} minutes. Estimated departure: {{ state_attr('sensor.nyp_to_phl_tracker', 'estimated_departure') }}.
+        Amtrak {{ state_attr('sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1_train_delay', 'route_name') }} (Train {{ state_attr('sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1_train_delay', 'train_number') }}) is departing {{ state_attr('sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1_train_delay', 'origin_name') }} delayed by {{ states('sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1_train_delay') }} minutes. Estimated departure: {{ state_attr('sensor.new_york_penn_station_to_philadelphia_30th_street_amtrak_tracker_1_train_delay', 'estimated_departure') }}.
 ```
 
 ---
