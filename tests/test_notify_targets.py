@@ -232,3 +232,41 @@ async def test_async_send_notify_uses_registered_mobile_app_action(hass: HomeAss
             "live_update": True,
         },
     }
+
+
+async def test_async_clear_notify_filtering_and_fallbacks(hass: HomeAssistant) -> None:
+    """Test async_clear_notify behavior, fallback resolution, and target checks."""
+    from custom_components.amtrak_tracker.notify_targets import async_clear_notify
+
+    # 1. Test is_mobile_app_push_target and resolve_notify_service_name fallbacks
+    # Unregistered target with entity prefix
+    assert is_mobile_app_push_target(hass, "notify.mobile_app_unregistered_iphone") is True
+    assert is_mobile_app_push_target(hass, "notify.telegram") is False
+    assert resolve_notify_service_name(hass, "notify.mobile_app_unregistered_iphone") == "mobile_app_unregistered_iphone"
+
+    # 2. Test async_clear_notify filtering
+    calls = []
+
+    @callback
+    def mock_notify_clear(call: ServiceCall) -> None:
+        calls.append(call)
+
+    # Register mock services
+    hass.services.async_register("notify", "mobile_app_unregistered_iphone", mock_notify_clear)
+    hass.services.async_register("notify", "telegram", mock_notify_clear)
+
+    # Case A: Clear mobile app unregistered target (should succeed)
+    await async_clear_notify(hass, "notify.mobile_app_unregistered_iphone", tag="test_tag")
+    await hass.async_block_till_done()
+    assert len(calls) == 1
+    assert calls[0].service == "mobile_app_unregistered_iphone"
+    assert calls[0].data["message"] == "clear_notification"
+    assert calls[0].data["data"]["tag"] == "test_tag"
+
+    calls.clear()
+
+    # Case B: Clear non-mobile app target (should return early without calling service)
+    await async_clear_notify(hass, "telegram", tag="test_tag")
+    await hass.async_block_till_done()
+    assert len(calls) == 0
+
