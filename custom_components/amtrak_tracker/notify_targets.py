@@ -69,7 +69,9 @@ def is_mobile_app_push_target(hass: HomeAssistant, target: str) -> bool:
     """Return True when the target can receive mobile app push payloads."""
     if target.startswith(f"{NOTIFY_DOMAIN}."):
         entity_entry = er.async_get(hass).async_get(target)
-        return bool(entity_entry and entity_entry.platform == MOBILE_APP_DOMAIN)
+        if entity_entry:
+            return entity_entry.platform == MOBILE_APP_DOMAIN
+        target = target.removeprefix(f"{NOTIFY_DOMAIN}.")
     return target in _mobile_app_registered_targets(hass) or target.startswith("mobile_app_")
 
 
@@ -130,12 +132,12 @@ def resolve_notify_service_name(hass: HomeAssistant, target: str) -> str:
 
     entity_entry = er.async_get(hass).async_get(target)
     if not entity_entry:
-        raise ValueError(f"Unknown notify entity: {target}")
+        return target.removeprefix(f"{NOTIFY_DOMAIN}.")
 
     if entity_entry.platform == MOBILE_APP_DOMAIN:
         service_name = mobile_app_entity_to_service_name(hass, entity_entry)
         if not service_name:
-            raise ValueError(f"Could not resolve mobile app service for {target}")
+            return target.removeprefix(f"{NOTIFY_DOMAIN}.")
         return service_name
 
     return target
@@ -210,14 +212,10 @@ async def async_clear_notify(
             blocking=True,
         )
         return
+    if not is_mobile_app_push_target(hass, target):
+        return
 
-    if target.startswith(f"{NOTIFY_DOMAIN}."):
-        entity_entry = er.async_get(hass).async_get(target)
-        if not entity_entry or entity_entry.platform != MOBILE_APP_DOMAIN:
-            return
-        service_name = resolve_notify_service_name(hass, target)
-    else:
-        service_name = target
+    service_name = resolve_notify_service_name(hass, target)
 
     await hass.services.async_call(
         NOTIFY_DOMAIN,
