@@ -12,6 +12,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.amtrak_tracker.const import (
     CONF_NOTIFY_ENABLED,
     CONF_NOTIFY_SERVICE,
+    CONF_NOTIFY_LIVE_ACTIVITY,
     DOMAIN,
     STATIONS_URL,
     TRAINS_URL,
@@ -201,6 +202,51 @@ async def test_notification_custom_device_service(hass: HomeAssistant, aioclient
                 "live_update": True,
                 "chronometer": True,
                 "when": expected_when,
+            },
+        }
+
+
+async def test_notification_custom_device_service_no_live_activity(hass: HomeAssistant, aioclient_mock) -> None:
+    """Test regular high priority notification is sent to custom notify service when live activity is disabled."""
+    from custom_components.amtrak_tracker.const import CONF_NOTIFY_LIVE_ACTIVITY
+
+    aioclient_mock.get(STATIONS_URL, json=MOCK_STATIONS)
+    aioclient_mock.get(TRAINS_URL, json=MOCK_TRAINS)
+
+    service_calls = setup_mock_services(hass)
+
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="NYP to PHL Tracker",
+        data={
+            "origin": "NYP",
+            "destination": "PHL",
+            "days": ["friday"],
+            "start_time": "08:00",
+            "end_time": "17:00",
+            CONF_NOTIFY_ENABLED: True,
+            CONF_NOTIFY_SERVICE: "mobile_app_my_iphone",
+            CONF_NOTIFY_LIVE_ACTIVITY: False,
+        },
+    )
+    config_entry.add_to_hass(hass)
+
+    with patch("homeassistant.util.dt.now", return_value=MOCK_NOW):
+        assert await hass.config_entries.async_setup(config_entry.entry_id) is True
+        await hass.async_block_till_done()
+
+        # Notification should be sent to mobile_app_my_iphone notify service with regular high priority payload
+        assert len(service_calls["notify"]) == 1
+        assert service_calls["notify"][0].data == {
+            "title": "Upcoming Amtrak Train 101",
+            "message": "Departing New York Penn Station at 9:15 AM for Philadelphia 30th Street.",
+            "data": {
+                "tag": f"amtrak_tracker_{config_entry.entry_id}",
+                "priority": "high",
+                "ttl": 0,
+                "push": {
+                    "interruption-level": "time-sensitive",
+                },
             },
         }
 
@@ -463,12 +509,14 @@ async def test_options_flow_and_reload(hass: HomeAssistant, aioclient_mock) -> N
                     "end_time": "17:00",
                     CONF_NOTIFY_ENABLED: True,
                     CONF_NOTIFY_SERVICE: "persistent_notification",
+                    CONF_NOTIFY_LIVE_ACTIVITY: False,
                 },
             )
             await hass.async_block_till_done()
             assert result2["type"] == "create_entry"
             # Verify options reload was triggered
             mock_reload.assert_called_once_with(config_entry.entry_id)
+            assert config_entry.options.get(CONF_NOTIFY_LIVE_ACTIVITY) is False
 
 
 async def test_notification_recreation_on_dismiss(hass: HomeAssistant, aioclient_mock) -> None:

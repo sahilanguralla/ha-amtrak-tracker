@@ -10,6 +10,7 @@ CONF_START_TIME = "start_time"
 CONF_END_TIME = "end_time"
 CONF_NOTIFY_ENABLED = "notify_enabled"
 CONF_NOTIFY_SERVICE = "notify_service"
+CONF_NOTIFY_LIVE_ACTIVITY = "notify_live_activity"
 
 # Defaults
 DEFAULT_UPDATE_INTERVAL_SECONDS = 30

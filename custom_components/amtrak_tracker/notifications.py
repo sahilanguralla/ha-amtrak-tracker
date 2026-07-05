@@ -15,6 +15,7 @@ from .const import (
     CONF_END_TIME,
     CONF_NOTIFY_ENABLED,
     CONF_NOTIFY_SERVICE,
+    CONF_NOTIFY_LIVE_ACTIVITY,
     CONF_ORIGIN,
     CONF_START_TIME,
     DOMAIN,
@@ -201,6 +202,7 @@ async def async_update_train_notifications(
     subtitle = f"Train {train_number}: {delay_string}"
 
     notify_service = entry.options.get(CONF_NOTIFY_SERVICE, entry.data.get(CONF_NOTIFY_SERVICE, PERSISTENT_NOTIFICATION))
+    use_live_activity = entry.options.get(CONF_NOTIFY_LIVE_ACTIVITY, entry.data.get(CONF_NOTIFY_LIVE_ACTIVITY, True))
 
     # De-duplicate notifications
     entry_state = hass.data[DOMAIN].setdefault(entry.entry_id, {})
@@ -211,6 +213,7 @@ async def async_update_train_notifications(
         "title": title,
         "message": message,
         "subtitle": subtitle,
+        "use_live_activity": use_live_activity,
     }
 
     # Check if the notification still exists in Home Assistant if using persistent_notification
@@ -254,7 +257,7 @@ async def async_update_train_notifications(
                 "tag": f"amtrak_tracker_{entry.entry_id}",
             }
 
-            if is_mobile_app_push_target(hass, notify_service):
+            if is_mobile_app_push_target(hass, notify_service) and use_live_activity:
                 # Tailor message for Live Activity: static time is replaced by ticking chronometer,
                 # so we display origin/destination and current delay status in the message.
                 live_activity_message = f"Departing {origin_name} for {dest_name} ({delay_string})"
@@ -275,6 +278,22 @@ async def async_update_train_notifications(
                     notify_service,
                     title=f"Upcoming Amtrak Train {train_number}",
                     message=live_activity_message,
+                    data=data_payload,
+                )
+            elif is_mobile_app_push_target(hass, notify_service):
+                # Send regular notification with high priority
+                data_payload.update({
+                    "priority": "high",
+                    "ttl": 0,
+                    "push": {
+                        "interruption-level": "time-sensitive",
+                    }
+                })
+                await async_send_notify(
+                    hass,
+                    notify_service,
+                    title=f"Upcoming Amtrak Train {train_number}",
+                    message=message,
                     data=data_payload,
                 )
             else:
