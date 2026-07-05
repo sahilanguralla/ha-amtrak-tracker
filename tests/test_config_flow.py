@@ -256,3 +256,56 @@ async def test_flow_stations_api_network_error(hass: HomeAssistant, aioclient_mo
 
     assert result["type"] == data_entry_flow.FlowResultType.FORM
     assert result["errors"] == {"base": "cannot_connect"}
+
+
+async def test_options_flow(hass: HomeAssistant) -> None:
+    """Test options flow."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="NYP to PHL Tracker",
+        data={
+            CONF_ORIGIN: "NYP",
+            CONF_DESTINATION: "PHL",
+            CONF_DAYS: ["monday"],
+            CONF_START_TIME: "08:00",
+            CONF_END_TIME: "17:00",
+        },
+        options={
+            "notify_enabled": True,
+            "notify_service": "persistent_notification",
+            "notify_live_activity": True,
+        },
+    )
+    config_entry.add_to_hass(hass)
+
+    # Initialize the options flow
+    result = await hass.config_entries.options.async_init(config_entry.entry_id)
+
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["step_id"] == "init"
+
+    # Configure the options
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        user_input={
+            CONF_DAYS: ["monday", "tuesday"],
+            CONF_START_TIME: "09:00",
+            CONF_END_TIME: "18:00",
+            "notify_enabled": False,
+            "notify_service": "persistent_notification",
+            "notify_live_activity": False,
+        },
+    )
+
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    assert result["data"] == {
+        CONF_DAYS: ["monday", "tuesday"],
+        CONF_START_TIME: "09:00",
+        CONF_END_TIME: "18:00",
+        "notify_enabled": False,
+        "notify_service": "persistent_notification",
+        "notify_live_activity": False,
+    }
+

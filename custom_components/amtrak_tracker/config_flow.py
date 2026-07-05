@@ -227,11 +227,13 @@ class AmtrakTrackerOptionsFlowHandler(config_entries.OptionsFlow):
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
-        try:
-            super().__init__(config_entry)
-        except TypeError:
-            super().__init__()
-            self.config_entry = config_entry
+        super().__init__()
+        self._config_entry = config_entry
+
+    @property
+    def config_entry(self) -> config_entries.ConfigEntry:
+        """Return the config entry."""
+        return self._config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None

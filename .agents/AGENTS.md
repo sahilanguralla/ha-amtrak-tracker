@@ -5,6 +5,7 @@ This repository is a Home Assistant Community Store (HACS) custom integration. W
 ## Repository & HACS Structure Guidelines
 - **Directory Layout**: All integration code must be under `custom_components/<domain>/` (e.g., `custom_components/amtrak_tracker/`). Do not put files outside this directory unless they are repository-level configurations.
 - **HACS Manifest (`hacs.json`)**: Must exist in the root of the repository. Ensure keys like `name`, `homeassistant` (minimum HA version), `hacs` (minimum HACS version), and `domains` are correct. Set `"render_readme": true` to display `README.md` on the HACS portal.
+- **README Updates**: The `README.md` must be updated if there have been changes or additions to the core functionality of the integration.
 - **Home Assistant Manifest (`manifest.json`)**: Located inside the domain folder. It must include the following keys:
   - `domain`: The unique identifier of the integration.
   - `name`: Human-readable name.
@@ -21,6 +22,7 @@ This repository is a Home Assistant Community Store (HACS) custom integration. W
 - **Config Flow**:
   - Always support configuration via a UI Config Flow (`config_flow.py`). Hardcoded YAML configurations are deprecated in Home Assistant.
   - Implement a `DataUpdateCoordinator` (`coordinator.py`) to manage polling data from external sources and sharing it across multiple entities.
+  - Ensure configuration updates and migrations are compatible with previous versions.
 - **Strings and Localization**:
   - Maintain user-facing text and translations inside `strings.json` and the `translations/` directory.
 
