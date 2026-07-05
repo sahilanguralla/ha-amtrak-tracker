@@ -18,6 +18,7 @@ from .const import (
     CONF_END_TIME,
     CONF_NOTIFY_ENABLED,
     CONF_NOTIFY_SERVICE,
+    CONF_NOTIFY_LIVE_ACTIVITY,
     CONF_ORIGIN,
     CONF_START_TIME,
     DOMAIN,
@@ -142,6 +143,7 @@ class AmtrakTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_END_TIME: user_input[CONF_END_TIME],
                         CONF_NOTIFY_ENABLED: user_input.get(CONF_NOTIFY_ENABLED, False),
                         CONF_NOTIFY_SERVICE: user_input.get(CONF_NOTIFY_SERVICE, "persistent_notification"),
+                        CONF_NOTIFY_LIVE_ACTIVITY: user_input.get(CONF_NOTIFY_LIVE_ACTIVITY, True),
                     },
                 )
 
@@ -211,6 +213,7 @@ class AmtrakTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),
+                vol.Optional(CONF_NOTIFY_LIVE_ACTIVITY, default=True): bool,
             }
         )
 
@@ -224,7 +227,11 @@ class AmtrakTrackerOptionsFlowHandler(config_entries.OptionsFlow):
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
-        self.config_entry = config_entry
+        try:
+            super().__init__(config_entry)
+        except TypeError:
+            super().__init__()
+            self.config_entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -241,6 +248,10 @@ class AmtrakTrackerOptionsFlowHandler(config_entries.OptionsFlow):
         notify_service = self.config_entry.options.get(
             CONF_NOTIFY_SERVICE,
             self.config_entry.data.get(CONF_NOTIFY_SERVICE, "persistent_notification")
+        )
+        notify_live_activity = self.config_entry.options.get(
+            CONF_NOTIFY_LIVE_ACTIVITY,
+            self.config_entry.data.get(CONF_NOTIFY_LIVE_ACTIVITY, True)
         )
         days = self.config_entry.options.get(
             CONF_DAYS,
@@ -285,6 +296,7 @@ class AmtrakTrackerOptionsFlowHandler(config_entries.OptionsFlow):
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),
+                vol.Optional(CONF_NOTIFY_LIVE_ACTIVITY, default=notify_live_activity): bool,
             }
         )
 

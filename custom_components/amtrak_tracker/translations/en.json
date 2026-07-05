@@ -11,7 +11,8 @@
           "start_time": "Start of departure time window (HH:MM)",
           "end_time": "End of departure time window (HH:MM)",
           "notify_enabled": "Enable upcoming train notification",
-          "notify_service": "Notification destination"
+          "notify_service": "Notification destination",
+          "notify_live_activity": "Use Live Activity notifications"
         }
       }
     },
@@ -32,7 +33,8 @@
         "description": "Configure notification and tracking settings for this Amtrak commute.",
         "data": {
           "notify_enabled": "Enable upcoming train notification",
-          "notify_service": "Notification destination"
+          "notify_service": "Notification destination",
+          "notify_live_activity": "Use Live Activity notifications"
         }
       }
     }
